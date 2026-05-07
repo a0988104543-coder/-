@@ -1265,7 +1265,7 @@ function showLabelPreview(item) {
     + '<div class="lbl-body">'
     + '<div class="lbl-hint">24mm 標籤帶　橫式　掃描 QR 開啟品項頁面</div>'
     + '<div class="lbl-canvas-wrap" id="lblCanvasWrap"><div style="padding:20px;color:var(--ink3);font-size:12px">生成中…</div></div>'
-    + '<div class="lbl-actions"><button class="lbl-dl" id="lblDownload">⬇ 儲存為 PNG</button><button class="lbl-dismiss" id="lblDismiss">關閉</button></div>'
+    + '<div class="lbl-actions"><button class="lbl-dl" id="lblDownload">⬇ 儲存／分享</button><button class="lbl-dismiss" id="lblDismiss">關閉</button></div>'
     + '</div></div>';
   document.body.appendChild(modal);
   document.getElementById('lblClose').onclick = function(){ modal.remove(); };
@@ -1280,10 +1280,24 @@ function showLabelPreview(item) {
     var wrap = document.getElementById('lblCanvasWrap');
     if (wrap) { wrap.innerHTML = ''; wrap.appendChild(canvas); }
     document.getElementById('lblDownload').onclick = function(){
-      var a = document.createElement('a');
-      a.download = 'label-' + item.id + '.png';
-      a.href = canvas.toDataURL('image/png');
-      a.click();
+      var fileName = 'label-' + item.id + '.png';
+      // 手機：用 Web Share API，可直接存入相簿
+      canvas.toBlob(function(blob) {
+        var file = new File([blob], fileName, {type:'image/png'});
+        if (navigator.share && navigator.canShare && navigator.canShare({files:[file]})) {
+          navigator.share({files:[file], title: item.name || item.id})
+            .catch(function(){ fallbackDownload(); });
+        } else {
+          fallbackDownload();
+        }
+        function fallbackDownload() {
+          var a = document.createElement('a');
+          a.download = fileName;
+          a.href = URL.createObjectURL(blob);
+          a.click();
+          setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+        }
+      }, 'image/png');
     };
   });
 }
