@@ -625,6 +625,7 @@ function renderBrowse(q, noReload) {
       +'<button class="bbtn" id="batchCancel">取消</button>'
       +'<span class="batch-info">已選 <b>'+batchSelected.size+'</b> 件</span>'
       +'<button class="bbtn" id="batchSelAll">全選('+(filtered.length)+')</button>'
+      +'<button class="bbtn" id="batchCsv"'+(batchSelected.size?'':' disabled')+'>📄 匯出 CSV</button>'
       +'<button class="bbtn primary" id="batchPrint"'+(batchSelected.size?'':' disabled')+'>🖨 列印 '+batchSelected.size+' 張</button>'
       +'</div>'
     : '';
@@ -659,6 +660,8 @@ function renderBrowse(q, noReload) {
     filtered.forEach(function(i){batchSelected.add(i.id);});
     renderBrowse(document.getElementById('searchInput')?document.getElementById('searchInput').value:'', true);
   });
+  var batchCsvEl=document.getElementById('batchCsv');
+  if(batchCsvEl && !batchCsvEl.disabled) batchCsvEl.addEventListener('click', exportBatchCsv);
   var batchPrintEl=document.getElementById('batchPrint');
   if(batchPrintEl && !batchPrintEl.disabled) batchPrintEl.addEventListener('click', printBatchLabels);
   document.querySelectorAll('.card').forEach(function(el){
@@ -1300,6 +1303,36 @@ function showLabelPreview(item) {
       }, 'image/png');
     };
   });
+}
+
+/* ── 匯出 CSV（供 P-touch Editor 資料庫列印）── */
+function exportBatchCsv() {
+  var selectedItems = dataCache.items.filter(function(i){ return batchSelected.has(i.id); });
+  if (!selectedItems.length) return;
+  var baseUrl = window.location.origin + window.location.pathname;
+  var rows = [['url','dynasty','name','id','loc']];
+  selectedItems.forEach(function(item) {
+    var url = baseUrl + '?id=' + encodeURIComponent(item.id);
+    rows.push([
+      url,
+      item.dynasty || '',
+      item.name    || '',
+      item.id      || '',
+      item.loc     || ''
+    ]);
+  });
+  var csv = rows.map(function(r){
+    return r.map(function(v){
+      var s = String(v).replace(/"/g,'""');
+      return (s.indexOf(',')>=0 || s.indexOf('"')>=0 || s.indexOf('\n')>=0) ? '"'+s+'"' : s;
+    }).join(',');
+  }).join('\r\n');
+  var blob = new Blob(['﻿'+csv], {type:'text/csv;charset=utf-8'});
+  var a = document.createElement('a');
+  a.download = '典藏標籤_' + selectedItems.length + '件.csv';
+  a.href = URL.createObjectURL(blob);
+  a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
 }
 
 /* ── 批次列印 ── */
