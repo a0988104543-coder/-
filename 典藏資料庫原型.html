@@ -1362,23 +1362,10 @@ function openPrintWindow(items, dataUrls) {
     + '<style>'
     + '@page{size:68mm 24mm;margin:0;}'
     + 'html,body{margin:0;padding:0;background:#fff;}'
-    + '.tips{font-family:sans-serif;font-size:13px;line-height:1.9;padding:16px 20px;background:#fffbe6;border-bottom:1px solid #e0c;max-width:480px;}'
-    + '.tips h3{margin:0 0 8px;font-size:15px;}'
-    + '.tips b{color:#c00;}'
-    + '@media print{.tips{display:none;}}'
-    + '.lbl{width:68mm;height:24mm;page-break-after:always;overflow:hidden;display:block;}'
+    + '.lbl{width:68mm;height:24mm;page-break-after:always;page-break-inside:avoid;overflow:hidden;display:block;}'
     + '.lbl:last-child{page-break-after:avoid;}'
     + 'img{width:68mm;height:24mm;display:block;border:none;}'
-    + '</style></head><body>'
-    + '<div class="tips">'
-    + '<h3>⚙️ 列印前請確認以下設定（列印後這欄不會印出）</h3>'
-    + '① 印表機選 <b>Brother PT-P710BT</b><br>'
-    + '② 紙張大小選 <b>68mm × 24mm</b>（或自訂 24mm 膠帶）<br>'
-    + '③ 縮放比例選 <b>100%（實際大小）</b><br>'
-    + '④ 邊距選 <b>無（None）</b><br>'
-    + '⑤ 方向選 <b>橫向（Landscape）</b><br><br>'
-    + '共 <b>' + n + '</b> 張標籤，確認後按「列印」。'
-    + '</div>';
+    + '</style></head><body>';
   dataUrls.forEach(function(dataUrl) {
     html += '<div class="lbl"><img src="' + dataUrl + '"></div>';
   });
