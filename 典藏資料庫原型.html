@@ -1,0 +1,2062 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>典藏資料庫</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@300;400;500&family=Noto+Sans+TC:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+:root{--ink:#1a1612;--ink2:#3d3530;--ink3:#7a6e68;--paper:#f5f0e8;--paper2:#ede7d9;--paper3:#e0d8c8;--accent:#8b4513;--accent2:#c47d3e;--jade:#3d7a5e;--border:rgba(26,22,18,0.14);--r:4px;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--paper);color:var(--ink);font-size:13px;font-family:'Noto Sans TC',sans-serif;max-width:680px;margin:0 auto;}
+#app{min-height:100vh;}
+.header{background:var(--ink);padding:14px 20px 0;display:flex;align-items:flex-end;}
+.htitle{font-family:'Noto Serif TC',serif;font-weight:300;font-size:15px;color:var(--paper2);letter-spacing:4px;padding-bottom:14px;margin-right:auto;}
+.hright{display:flex;align-items:flex-end;gap:0;}
+.tabs{display:flex;}
+.tab{padding:8px 18px;font-size:12px;letter-spacing:2px;cursor:pointer;color:rgba(245,240,232,0.4);border-bottom:2px solid transparent;transition:all .2s;}
+.tab.on{color:var(--paper);border-bottom-color:var(--accent2);}
+.hsetup{padding:8px 14px;font-size:11px;letter-spacing:1px;cursor:pointer;color:rgba(245,240,232,0.3);border-bottom:2px solid transparent;transition:color .2s;}
+.hsetup:hover{color:rgba(245,240,232,0.6);}
+
+/* CATEGORY BAR */
+.catbar{display:flex;gap:6px;padding:10px 16px;background:var(--paper2);border-bottom:1px solid var(--border);overflow-x:auto;-webkit-overflow-scrolling:touch;}
+.catbar::-webkit-scrollbar{display:none;}
+.catf{flex-shrink:0;padding:5px 12px;font-size:11px;letter-spacing:1.5px;border:1px solid var(--border);border-radius:20px;cursor:pointer;background:var(--paper);color:var(--ink2);transition:all .15s;font-family:'Noto Sans TC',sans-serif;}
+.catf:hover{border-color:var(--accent2);color:var(--accent);}
+.catf.on{background:var(--ink);border-color:var(--ink);color:var(--paper);}
+
+/* TOOLBAR */
+.toolbar{padding:10px 16px;background:var(--paper);border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center;}
+.search-wrap{flex:1;position:relative;}
+.search-wrap input{width:100%;padding:7px 12px 7px 30px;border:1px solid var(--border);border-radius:20px;background:var(--paper2);font-family:'Noto Sans TC',sans-serif;font-size:13px;color:var(--ink);outline:none;transition:border-color .15s;}
+.search-wrap input:focus{border-color:var(--accent2);}
+.search-icon{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--ink3);font-size:13px;pointer-events:none;}
+.count{font-size:12px;color:var(--ink3);white-space:nowrap;}
+
+/* GRID */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:12px;padding:14px 16px;}
+.empty{text-align:center;padding:60px 20px;color:var(--ink3);}
+.card{background:var(--paper);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;cursor:pointer;transition:all .2s;position:relative;}
+.card:hover{border-color:var(--accent2);transform:translateY(-2px);box-shadow:0 4px 14px rgba(26,22,18,0.12);}
+.card:active{transform:translateY(0);}
+.card-img{width:100%;aspect-ratio:3/4;display:flex;align-items:center;justify-content:center;font-size:44px;overflow:hidden;position:relative;}
+.card-img img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;}
+.card-body{padding:8px 10px;border-top:1px solid var(--border);}
+.card-id{font-size:9px;color:var(--ink3);letter-spacing:1px;margin-bottom:2px;}
+.card-name{font-family:'Noto Serif TC',serif;font-size:13px;color:var(--ink);margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.card-meta{font-size:11px;color:var(--ink3);display:flex;justify-content:space-between;align-items:center;}
+.sdot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:3px;vertical-align:middle;}
+.new-badge{position:absolute;top:6px;right:6px;background:var(--jade);color:#fff;font-size:9px;letter-spacing:1px;padding:2px 6px;border-radius:10px;}
+@keyframes cardFlash{0%{box-shadow:0 0 0 0 rgba(61,122,94,0.6)}50%{box-shadow:0 0 0 6px rgba(61,122,94,0.15)}100%{box-shadow:0 0 0 0 rgba(61,122,94,0)}}
+.card-saved{animation:cardFlash .8s ease-out;border-color:var(--jade)!important;}
+mark{background:rgba(196,125,62,0.28);color:var(--ink);border-radius:2px;padding:0 1px;font-style:normal;}
+
+/* BATCH MODE */
+.batch-bar{display:flex;align-items:center;gap:8px;padding:9px 16px;background:var(--ink);color:var(--paper);position:sticky;top:0;z-index:20;border-bottom:1px solid rgba(245,240,232,0.1);}
+.batch-info{flex:1;font-size:12px;color:rgba(245,240,232,0.7);letter-spacing:.5px;}
+.batch-info b{color:var(--paper);}
+.bbtn{padding:6px 14px;font-size:11px;letter-spacing:1px;border:1px solid rgba(245,240,232,0.28);border-radius:20px;background:transparent;color:var(--paper);cursor:pointer;white-space:nowrap;transition:all .15s;}
+.bbtn.primary{background:var(--accent2);border-color:var(--accent2);color:#fff;font-weight:500;}
+.bbtn:disabled{opacity:0.35;cursor:default;}
+.tbatch{padding:5px 11px;font-size:11px;letter-spacing:1px;border:1px solid var(--border);border-radius:20px;background:var(--paper);color:var(--ink2);cursor:pointer;white-space:nowrap;transition:all .15s;flex-shrink:0;}
+.tbatch.on{background:var(--ink);color:var(--paper);border-color:var(--ink);}
+.batch-chk{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;background:#fff;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:13px;z-index:3;transition:all .15s;pointer-events:none;}
+.card.b-sel{outline:2px solid var(--accent2);outline-offset:-2px;}
+.card.b-sel .batch-chk{background:var(--accent2);border-color:var(--accent2);color:#fff;}
+
+/* LOADING */
+.loading-screen{text-align:center;padding:60px 20px;}
+.spinner{width:28px;height:28px;border:2px solid var(--border);border-top-color:var(--jade);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 12px;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.error-bar{background:rgba(163,45,45,0.08);border:1px solid rgba(163,45,45,0.25);border-radius:var(--r);padding:10px 16px;margin:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.error-msg{font-size:12px;color:#a32d2d;}
+.error-retry{font-size:11px;color:#a32d2d;cursor:pointer;text-decoration:underline;white-space:nowrap;}
+.api-saving{position:fixed;bottom:16px;right:16px;background:var(--ink);color:var(--paper2);font-size:11px;letter-spacing:1px;padding:7px 14px;border-radius:20px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:300;}
+.api-saving.show{opacity:1;}
+
+/* DETAIL PANEL */
+.overlay{display:none;position:fixed;inset:0;background:rgba(26,22,18,0.5);z-index:100;justify-content:flex-end;}
+.overlay.open{display:flex;}
+.panel{width:min(460px,100%);height:100%;background:var(--paper);overflow-y:auto;display:flex;flex-direction:column;animation:slideIn .25s ease;}
+@keyframes slideIn{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
+.panel-header{background:var(--ink);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10;}
+.panel-id{font-size:11px;letter-spacing:2px;color:rgba(245,240,232,0.6);}
+.pbtn-close{background:none;border:none;color:rgba(245,240,232,0.6);font-size:18px;cursor:pointer;padding:4px 8px;line-height:1;transition:color .15s;}
+.pbtn-close:hover{color:var(--paper);}
+/* 圖片區：大圖 + 縮圖列 */
+.panel-img-section{background:var(--paper2);border-bottom:1px solid var(--border);}
+.panel-img-main{position:relative;width:100%;height:260px;display:flex;align-items:center;justify-content:center;background:var(--ink);overflow:hidden;cursor:pointer;}
+.panel-img-main img{width:100%;height:100%;object-fit:contain;display:block;}
+.panel-img-main .img-placeholder{font-size:72px;opacity:.55;}
+.panel-img-main .img-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(26,22,18,0.45);border:none;color:#fff;font-size:20px;width:36px;height:36px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s;z-index:5;}
+.panel-img-main .img-nav:hover{background:rgba(26,22,18,0.75);}
+.panel-img-main .img-nav.prev{left:10px;}
+.panel-img-main .img-nav.next{right:10px;}
+.panel-img-main .img-counter{position:absolute;bottom:8px;right:10px;font-size:10px;color:rgba(245,240,232,0.6);letter-spacing:1px;background:rgba(26,22,18,0.4);padding:2px 7px;border-radius:10px;}
+.panel-img-thumbs{display:flex;gap:6px;padding:8px 12px;overflow-x:auto;-webkit-overflow-scrolling:touch;align-items:center;}
+.panel-img-thumbs::-webkit-scrollbar{height:3px;}
+.panel-img-thumbs::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+.thumb-slot{position:relative;flex-shrink:0;}
+.thumb-box{width:52px;height:52px;border-radius:var(--r);overflow:hidden;border:2px solid transparent;cursor:pointer;transition:border-color .15s;background:var(--paper3);display:flex;align-items:center;justify-content:center;font-size:22px;}
+.thumb-box img{width:100%;height:100%;object-fit:cover;display:block;}
+.thumb-box.active{border-color:var(--accent);}
+.thumb-box:hover{border-color:var(--accent2);}
+.thumb-del{display:none;position:absolute;top:-4px;right:-4px;width:16px;height:16px;border-radius:50%;background:var(--accent);color:#fff;font-size:9px;border:none;cursor:pointer;align-items:center;justify-content:center;line-height:1;z-index:2;}
+.edit-thumbs .thumb-del{display:flex;}
+.thumb-add{width:52px;height:52px;border-radius:var(--r);border:1.5px dashed var(--border);background:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--ink3);font-size:18px;flex-shrink:0;transition:all .15s;font-family:'Noto Sans TC',sans-serif;}
+.thumb-add:hover{border-color:var(--accent2);color:var(--accent);}
+.thumb-add:disabled{opacity:.45;cursor:not-allowed;}
+.thumb-add-lbl{font-size:8px;letter-spacing:1px;}
+.drive-link{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--jade);text-decoration:none;padding:3px 8px;border:1px solid rgba(61,122,94,0.3);border-radius:20px;transition:all .15s;}
+.drive-link:hover{background:rgba(61,122,94,0.08);}
+.img-loading-bar{height:2px;background:var(--border);position:relative;overflow:hidden;}
+.img-loading-bar::after{content:'';position:absolute;left:-40%;width:40%;height:100%;background:var(--jade);animation:imgload .9s linear infinite;}
+@keyframes imgload{to{left:100%;}}
+.panel-img-section{position:relative;}
+.panel-img-section.drag-over{outline:3px dashed var(--accent2);outline-offset:-3px;}
+.panel-img-section.drag-over::after{content:'拖曳圖片至此上傳';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:14px;letter-spacing:2px;color:var(--accent2);background:rgba(245,240,232,0.85);z-index:20;pointer-events:none;}
+.panel-fields{padding:14px 16px;flex:1;}
+.pfg{margin-bottom:12px;}
+.pfrow{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.pfl{font-size:10px;letter-spacing:2px;color:var(--ink3);margin-bottom:4px;}
+.pfv{font-size:13px;color:var(--ink);padding:5px 0;border-bottom:1px solid var(--border);min-height:26px;line-height:1.7;}
+.pfv.multiline{line-height:1.8;}
+.sbadge{display:inline-flex;align-items:center;padding:3px 8px;border-radius:20px;font-size:11px;}
+.psec{font-size:10px;letter-spacing:3px;color:var(--accent);padding:8px 0 6px;border-top:1px solid var(--border);margin-top:4px;}
+.ffi{width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:var(--r);background:var(--paper2);font-family:'Noto Sans TC',sans-serif;font-size:13px;color:var(--ink);outline:none;transition:border-color .15s;}
+.ffi:focus{border-color:var(--accent2);}
+select.ffi{cursor:pointer;}
+textarea.ffi{resize:vertical;min-height:72px;line-height:1.8;}
+.pfv.highlight,.ffi.highlight{background:rgba(61,122,94,0.14)!important;border-color:var(--jade)!important;}
+.pmeta{font-size:10px;color:var(--ink3);letter-spacing:1px;padding:8px 16px;background:var(--paper2);border-top:1px solid var(--border);}
+
+/* ACTION BAR */
+.act-bar{position:sticky;bottom:0;background:var(--paper);border-top:1px solid var(--border);padding:10px 16px;display:flex;gap:8px;}
+.act-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 6px;border:1px solid var(--border);border-radius:var(--r);background:var(--paper2);cursor:pointer;font-family:'Noto Sans TC',sans-serif;font-size:10px;letter-spacing:1px;color:var(--ink2);transition:all .15s;min-height:52px;justify-content:center;}
+.act-btn:hover{border-color:var(--accent2);color:var(--accent);}
+.act-btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+.act-btn.primary:hover{background:var(--accent2);border-color:var(--accent2);}
+.act-btn.danger{color:#a32d2d;border-color:rgba(163,45,45,0.2);}
+.act-btn.danger:hover{background:rgba(163,45,45,0.08);border-color:#a32d2d;}
+.act-btn:disabled{opacity:.5;cursor:not-allowed;}
+.act-btn-icon{font-size:18px;line-height:1;}
+.btn-save{flex:1;background:var(--accent);color:#fff;border:none;border-radius:var(--r);padding:10px;font-family:'Noto Sans TC',sans-serif;font-size:13px;letter-spacing:2px;cursor:pointer;transition:background .15s;}
+.btn-save:hover{background:var(--accent2);}
+.btn-cancel{background:none;border:1px solid var(--border);border-radius:var(--r);padding:10px 14px;font-family:'Noto Sans TC',sans-serif;font-size:13px;cursor:pointer;color:var(--ink2);}
+
+/* FILING */
+.sbar{background:var(--paper2);border-bottom:1px solid var(--border);padding:11px 20px;display:flex;align-items:center;overflow-x:auto;}
+.sbar::-webkit-scrollbar{display:none;}
+.si{display:flex;align-items:center;gap:5px;flex-shrink:0;}
+.sn{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;border:1px solid var(--border);color:var(--ink3);background:var(--paper);flex-shrink:0;}
+.sn.done{background:var(--jade);border-color:var(--jade);color:#fff;}
+.sn.cur{background:var(--accent);border-color:var(--accent);color:#fff;}
+.sl{font-size:11px;letter-spacing:1px;color:var(--ink3);white-space:nowrap;}
+.sl.cur{color:var(--accent);}
+.sl.done{color:var(--jade);}
+.sline{flex-shrink:0;width:14px;height:1px;background:var(--border);margin:0 3px;}
+.cont{padding:16px 20px;}
+.fl{font-size:10px;letter-spacing:2px;color:var(--ink3);margin-bottom:5px;}
+.req{color:var(--accent);}
+.fg{margin-bottom:14px;}
+.fr{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.abar{display:flex;gap:10px;justify-content:flex-end;padding-top:14px;border-top:1px solid var(--border);margin-top:4px;}
+.bp{background:var(--accent);color:#fff;border:none;border-radius:var(--r);padding:10px 22px;font-family:'Noto Sans TC',sans-serif;font-size:13px;cursor:pointer;transition:background .15s;}
+.bp:hover{background:var(--accent2);}
+.bp:disabled{background:var(--paper3);color:var(--ink3);cursor:not-allowed;}
+.bs{background:none;color:var(--ink2);border:1px solid var(--border);border-radius:var(--r);padding:10px 16px;font-family:'Noto Sans TC',sans-serif;font-size:13px;cursor:pointer;}
+.bai{background:rgba(61,122,94,0.1);color:var(--jade);border:1px solid rgba(61,122,94,0.35);border-radius:var(--r);padding:10px 22px;font-family:'Noto Sans TC',sans-serif;font-size:13px;cursor:pointer;}
+.catgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px;}
+.catbtn{border:1px solid var(--border);border-radius:var(--r);padding:14px 6px;text-align:center;cursor:pointer;background:var(--paper);transition:all .15s;}
+.catbtn:hover{border-color:var(--accent2);}
+.catbtn.sel{border-color:var(--accent);background:rgba(139,69,19,0.06);}
+.fp-outer{background:var(--paper2);border:1px solid var(--border);border-radius:var(--r);padding:10px;margin-bottom:8px;}
+.fp-orient{display:flex;justify-content:space-between;margin-bottom:6px;}
+.fp-orient-label{font-size:9px;color:var(--ink3);letter-spacing:1px;}
+.fp-room{background:#e8e0d0;border:2px solid #a09888;border-radius:2px;padding:8px 8px 0;display:flex;gap:8px;align-items:flex-start;}
+.fp-left{display:flex;flex-direction:column;gap:4px;}
+.fp-right{display:flex;flex-direction:column;gap:4px;margin-left:auto;}
+.fp-aisle{flex:1;display:flex;align-items:center;justify-content:center;}
+.fp-aisle-label{font-size:9px;color:rgba(26,22,18,0.2);letter-spacing:3px;writing-mode:vertical-rl;}
+.fp-group{display:flex;align-items:center;gap:3px;}
+.fp-group-label{font-size:8px;color:var(--ink3);width:22px;flex-shrink:0;text-align:right;}
+.fp-2x2{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:2px;}
+.cab-cell{width:26px;height:20px;background:var(--paper);border:1px solid rgba(26,22,18,0.18);border-radius:1px;display:flex;align-items:center;justify-content:center;font-size:8px;color:var(--ink3);cursor:pointer;transition:all .12s;user-select:none;}
+.cab-cell:hover,.cab-cell.sel{background:rgba(139,69,19,0.22);border-color:var(--accent);color:var(--accent);}
+.rack-cell{width:50px;height:20px;background:var(--paper);border:1px solid rgba(26,22,18,0.18);border-radius:1px;display:flex;align-items:center;justify-content:center;font-size:8px;color:var(--ink3);cursor:pointer;transition:all .12s;user-select:none;}
+.rack-cell:hover,.rack-cell.sel{background:rgba(139,69,19,0.22);border-color:var(--accent);color:var(--accent);}
+.fp-door{text-align:center;font-size:8px;color:var(--ink3);letter-spacing:2px;padding:5px 0 2px;border-top:1px dashed rgba(26,22,18,0.15);margin-top:6px;}
+.lpanel{display:flex;align-items:center;gap:8px;background:var(--paper);border:1px solid rgba(139,69,19,0.22);border-radius:var(--r);padding:8px 12px;margin-bottom:8px;}
+.llbl{font-size:10px;letter-spacing:1px;color:var(--accent);flex-shrink:0;}
+.lbtns{display:flex;gap:4px;}
+.lbtn{min-width:38px;padding:5px 8px;border:1px solid var(--border);border-radius:var(--r);background:var(--paper);font-family:'Noto Sans TC',sans-serif;font-size:11px;cursor:pointer;text-align:center;transition:all .12s;color:var(--ink2);}
+.lbtn.sel{background:var(--accent);border-color:var(--accent);color:#fff;}
+.lhint{font-size:10px;color:var(--ink3);}
+.presult{display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(139,69,19,0.06);border:1px solid rgba(139,69,19,0.22);border-radius:var(--r);margin-bottom:8px;}
+.pcode{font-family:'Noto Serif TC',serif;font-size:16px;letter-spacing:3px;color:var(--accent);}
+.pdesc{font-size:11px;color:var(--ink3);}
+.pclr{margin-left:auto;font-size:11px;color:var(--ink3);cursor:pointer;text-decoration:underline;white-space:nowrap;}
+.aibox{border:1px solid rgba(61,122,94,0.3);border-radius:var(--r);overflow:hidden;margin-bottom:14px;}
+.aihdr{background:rgba(61,122,94,0.08);padding:9px 13px;display:flex;align-items:center;justify-content:space-between;font-size:11px;letter-spacing:1px;color:var(--jade);}
+.aibody{padding:13px;}
+.ffi.aif{background:rgba(61,122,94,0.06);border-color:rgba(61,122,94,0.4);}
+.abadge{display:inline-flex;font-size:10px;color:var(--jade);background:rgba(61,122,94,0.1);padding:1px 6px;border-radius:10px;margin-left:5px;}
+.uzn{border:2px dashed var(--border);border-radius:var(--r);padding:22px;text-align:center;cursor:pointer;transition:all .15s;}
+.uzn:hover{border-color:var(--accent2);}
+.uzn.has{border-color:var(--jade);border-style:solid;}
+.uzn.drag-over-file{border-color:var(--accent2);background:rgba(196,125,62,0.06);}
+
+/* SETUP SCREEN */
+.setup-screen{padding:24px 20px;}
+.setup-title{font-family:'Noto Serif TC',serif;font-size:18px;font-weight:300;letter-spacing:3px;margin-bottom:6px;}
+.setup-sub{font-size:12px;color:var(--ink3);margin-bottom:24px;line-height:1.8;}
+.setup-step{display:flex;gap:12px;margin-bottom:16px;padding:12px 14px;background:var(--paper2);border-radius:var(--r);border:1px solid var(--border);}
+.setup-step-num{width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;}
+.setup-step-body{font-size:12px;color:var(--ink2);line-height:1.8;}
+.setup-step-body b{color:var(--ink);font-weight:500;}
+.setup-step-body code{background:var(--paper3);padding:1px 5px;border-radius:3px;font-size:11px;}
+.setup-url-row{display:flex;gap:8px;margin-top:20px;}
+.setup-url-input{flex:1;padding:9px 12px;border:1px solid var(--border);border-radius:var(--r);background:var(--paper);font-family:'Noto Sans TC',sans-serif;font-size:13px;color:var(--ink);outline:none;}
+.setup-url-input:focus{border-color:var(--accent2);}
+.setup-url-btn{background:var(--accent);color:#fff;border:none;border-radius:var(--r);padding:9px 18px;font-family:'Noto Sans TC',sans-serif;font-size:13px;cursor:pointer;white-space:nowrap;}
+.setup-url-btn:hover{background:var(--accent2);}
+.setup-demo-btn{margin-top:12px;width:100%;background:none;border:1px solid var(--border);border-radius:var(--r);padding:9px;font-family:'Noto Sans TC',sans-serif;font-size:12px;cursor:pointer;color:var(--ink3);letter-spacing:1px;}
+.setup-demo-btn:hover{border-color:var(--accent2);color:var(--ink2);}
+.setup-error{font-size:11px;color:#a32d2d;margin-top:6px;display:none;}
+
+/* CAMERA FAB */
+.cam-fab{position:fixed;bottom:24px;right:max(16px,calc(50% - 340px + 16px));width:56px;height:56px;border-radius:50%;background:var(--accent);color:#fff;border:none;font-size:24px;cursor:pointer;box-shadow:0 4px 16px rgba(139,69,19,0.4);display:flex;align-items:center;justify-content:center;z-index:50;transition:background .15s,transform .15s;}
+.cam-fab:hover{background:var(--accent2);transform:scale(1.05);}
+.cam-fab:active{transform:scale(0.95);}
+
+/* QUICK FILE SHEET */
+.qf-backdrop{display:none;position:fixed;inset:0;background:rgba(26,22,18,0.52);z-index:200;}
+.qf-backdrop.open{display:block;}
+.qf-sheet{position:fixed;left:50%;bottom:0;transform:translateX(-50%) translateY(105%);width:min(680px,100%);max-height:94vh;background:var(--paper);border-radius:16px 16px 0 0;box-shadow:0 -4px 32px rgba(26,22,18,0.18);z-index:201;display:flex;flex-direction:column;transition:transform .32s cubic-bezier(.32,.72,0,1);overflow:hidden;}
+.qf-sheet.open{transform:translateX(-50%) translateY(0);}
+.qf-handle{width:36px;height:4px;background:var(--border);border-radius:2px;margin:10px auto 2px;flex-shrink:0;}
+.qf-header{padding:6px 16px 10px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.qf-title{font-family:'Noto Serif TC',serif;font-size:15px;font-weight:300;letter-spacing:3px;color:var(--ink);}
+.qf-close{background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink3);padding:4px 6px;line-height:1;}
+.qf-body{overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch;}
+.qf-photos{background:#0e0e0e;height:220px;position:relative;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.qf-photos img{height:100%;width:100%;object-fit:contain;display:block;}
+.qf-photos .qf-ph-empty{font-size:64px;opacity:.2;}
+.qf-photo-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:20px;width:34px;height:34px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.qf-photo-nav.prev{left:8px;}.qf-photo-nav.next{right:8px;}
+.qf-photo-counter{position:absolute;bottom:7px;right:10px;font-size:10px;color:rgba(255,255,255,0.55);background:rgba(0,0,0,0.35);padding:2px 7px;border-radius:10px;letter-spacing:1px;}
+.qf-thumbs{display:flex;gap:6px;padding:8px 12px;background:var(--paper2);border-bottom:1px solid var(--border);overflow-x:auto;flex-shrink:0;}
+.qf-thumbs::-webkit-scrollbar{display:none;}
+.qf-thumb{width:44px;height:44px;border-radius:var(--r);overflow:hidden;border:2px solid transparent;cursor:pointer;flex-shrink:0;background:var(--paper3);}
+.qf-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+.qf-thumb.active{border-color:var(--accent);}
+.qf-thumb-add{width:44px;height:44px;border-radius:var(--r);border:1.5px dashed var(--border);background:none;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:16px;color:var(--ink3);cursor:pointer;gap:1px;font-family:'Noto Sans TC',sans-serif;}
+.qf-thumb-add span{font-size:8px;letter-spacing:1px;}
+.qf-form{padding:14px 16px 8px;}
+.qf-sec{font-size:10px;letter-spacing:3px;color:var(--accent);margin:16px 0 8px;border-top:1px solid var(--border);padding-top:10px;}
+.qf-sec.first{border-top:none;margin-top:0;padding-top:0;}
+.qf-cats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:4px;}
+.qf-cat{border:1px solid var(--border);border-radius:var(--r);padding:8px 4px;text-align:center;cursor:pointer;background:var(--paper);transition:all .12s;}
+.qf-cat:hover{border-color:var(--accent2);}
+.qf-cat.sel{border-color:var(--accent);background:rgba(139,69,19,0.06);}
+.qf-cat-e{font-size:20px;line-height:1.2;}
+.qf-cat-k{font-size:10px;letter-spacing:1px;color:var(--accent);font-weight:500;margin-top:2px;}
+.qf-cat-n{font-size:9px;color:var(--ink3);}
+.qf-loc-row{display:flex;gap:8px;}
+.qf-loc-btn{padding:7px 11px;border:1px solid var(--border);border-radius:var(--r);background:var(--paper2);font-size:11px;cursor:pointer;color:var(--ink2);white-space:nowrap;font-family:'Noto Sans TC',sans-serif;flex-shrink:0;}
+.qf-loc-btn.sel{border-color:var(--accent);color:var(--accent);background:rgba(139,69,19,0.06);}
+.qf-locpicker{background:var(--paper2);border:1px solid var(--border);border-radius:var(--r);padding:10px;margin-top:8px;}
+.qf-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.qf-fg{margin-bottom:12px;}
+.qf-lbl{font-size:10px;letter-spacing:2px;color:var(--ink3);margin-bottom:4px;}
+.qf-ai-bar{background:rgba(61,122,94,0.08);border:1px solid rgba(61,122,94,0.3);border-radius:var(--r);padding:10px 14px;display:flex;align-items:center;justify-content:space-between;margin:4px 0 12px;cursor:pointer;}
+.qf-ai-lbl{font-size:12px;color:var(--jade);letter-spacing:1px;}
+.qf-ai-hint{font-size:10px;color:var(--ink3);}
+.qf-ai-fields{border:1px solid rgba(61,122,94,0.25);border-radius:var(--r);overflow:hidden;margin-bottom:12px;}
+.qf-ai-fields .qf-form-inner{padding:12px;}
+.ffi.qf-aif{background:rgba(61,122,94,0.06);border-color:rgba(61,122,94,0.35);}
+.qf-footer{padding:10px 16px 24px;display:flex;gap:10px;border-top:1px solid var(--border);flex-shrink:0;background:var(--paper);}
+.qf-save{flex:1;background:var(--accent);color:#fff;border:none;border-radius:var(--r);padding:14px;font-family:'Noto Sans TC',sans-serif;font-size:14px;letter-spacing:2px;cursor:pointer;transition:background .15s;}
+.qf-save:hover{background:var(--accent2);}
+.qf-save:disabled{opacity:.5;cursor:not-allowed;}
+.qf-cancel{background:none;border:1px solid var(--border);border-radius:var(--r);padding:14px 18px;font-family:'Noto Sans TC',sans-serif;font-size:13px;cursor:pointer;color:var(--ink2);}
+
+/* DELETE CONFIRM */
+.del-confirm{position:fixed;inset:0;background:rgba(26,22,18,0.55);z-index:200;display:flex;align-items:center;justify-content:center;}
+.del-box{background:var(--paper);border-radius:var(--r);padding:24px 28px;width:min(320px,90%);text-align:center;}
+.del-title{font-family:'Noto Serif TC',serif;font-size:16px;margin-bottom:8px;}
+.del-sub{font-size:12px;color:var(--ink3);margin-bottom:20px;line-height:1.7;}
+.del-btns{display:flex;gap:10px;}
+.del-ok{flex:1;background:#a32d2d;color:#fff;border:none;border-radius:var(--r);padding:10px;font-family:'Noto Sans TC',sans-serif;font-size:13px;cursor:pointer;}
+.del-cancel{flex:1;background:none;border:1px solid var(--border);border-radius:var(--r);padding:10px;font-family:'Noto Sans TC',sans-serif;font-size:13px;cursor:pointer;color:var(--ink2);}
+
+/* LABEL MODAL */
+.lbl-modal{position:fixed;inset:0;background:rgba(26,22,18,0.6);z-index:300;display:flex;align-items:center;justify-content:center;padding:16px;}
+.lbl-box{background:var(--paper);border-radius:var(--r);width:min(400px,100%);overflow:hidden;box-shadow:0 8px 40px rgba(26,22,18,0.25);}
+.lbl-header{background:var(--ink);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;}
+.lbl-title{font-family:'Noto Serif TC',serif;font-weight:300;font-size:14px;letter-spacing:3px;color:var(--paper2);}
+.lbl-close{background:none;border:none;color:rgba(245,240,232,0.6);font-size:18px;cursor:pointer;padding:4px 8px;line-height:1;}
+.lbl-body{padding:20px;display:flex;flex-direction:column;align-items:center;gap:16px;}
+.lbl-hint{font-size:11px;color:var(--ink3);letter-spacing:1px;text-align:center;}
+.lbl-canvas-wrap{background:#fff;border:1px solid var(--border);border-radius:2px;display:inline-block;box-shadow:0 2px 8px rgba(26,22,18,0.12);}
+.lbl-actions{display:flex;gap:10px;width:100%;}
+.lbl-dl{flex:1;background:var(--accent);color:#fff;border:none;border-radius:var(--r);padding:11px;font-family:'Noto Sans TC',sans-serif;font-size:13px;letter-spacing:1px;cursor:pointer;transition:background .15s;}
+.lbl-dl:hover{background:var(--accent2);}
+.lbl-dismiss{background:none;border:1px solid var(--border);border-radius:var(--r);padding:11px 16px;font-family:'Noto Sans TC',sans-serif;font-size:13px;cursor:pointer;color:var(--ink2);}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="header">
+    <div class="htitle">典藏資料庫</div>
+    <div class="hright">
+      <div class="tabs">
+        <div class="tab on" id="tabBrowse">瀏覽</div>
+        <div class="tab" id="tabFile">建檔</div>
+      </div>
+      <div class="hsetup" id="hsetupBtn" title="連線設定">⚙</div>
+    </div>
+  </div>
+  <div id="browseMode"></div>
+  <div id="fileMode" style="display:none"></div>
+  <div class="overlay" id="overlay">
+    <div class="panel" id="panel"></div>
+  </div>
+  <div class="api-saving" id="apiSaving">儲存中⋯</div>
+
+  <!-- Camera FAB -->
+  <button class="cam-fab" id="camFab" title="拍照建檔">📷</button>
+  <input type="file" id="quickCamInput" accept="image/*" capture="environment" multiple style="display:none">
+
+  <!-- Quick File Bottom Sheet -->
+  <div class="qf-backdrop" id="qfBackdrop"></div>
+  <div class="qf-sheet" id="qfSheet">
+    <div class="qf-handle"></div>
+    <div class="qf-header">
+      <div class="qf-title">快速建檔</div>
+      <button class="qf-close" id="qfClose">✕</button>
+    </div>
+    <div class="qf-body" id="qfBody"></div>
+    <div class="qf-footer">
+      <button class="qf-cancel" id="qfCancel">取消</button>
+      <button class="qf-save" id="qfSaveBtn">確認儲存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ========== CONFIG & API ========== */
+
+var WEBAPP_URL = localStorage.getItem('dbWebappUrl') || '';
+var DEMO_MODE  = false; // 無 URL 時使用範例資料
+
+var dataCache = { loaded: false, items: [] };
+
+function apiGet(params, cb) {
+  var url = WEBAPP_URL + '?' + Object.keys(params).map(function(k){return k+'='+encodeURIComponent(params[k]);}).join('&');
+  fetch(url)
+    .then(function(r){ return r.json(); })
+    .then(function(d){ cb(d.ok ? null : (d.error||'錯誤'), d); })
+    .catch(function(e){ cb(e.message||'網路錯誤', null); });
+}
+
+function apiPost(payload, cb) {
+  fetch(WEBAPP_URL, { method:'POST', body: JSON.stringify(payload) })
+    .then(function(r){ return r.json(); })
+    .then(function(d){ cb(d.ok ? null : (d.error||'錯誤'), d); })
+    .catch(function(e){ cb(e.message||'網路錯誤', null); });
+}
+
+function showSaving(text) {
+  var el = document.getElementById('apiSaving');
+  el.textContent = text || '儲存中⋯';
+  el.classList.add('show');
+}
+function hideSaving() {
+  document.getElementById('apiSaving').classList.remove('show');
+}
+
+function loadItems(force, cb) {
+  if (!WEBAPP_URL || DEMO_MODE) {
+    if (!dataCache.loaded) { dataCache.items = DEMO_ITEMS.slice(); dataCache.loaded = true; }
+    cb(null);
+    return;
+  }
+  if (dataCache.loaded && !force) { cb(null); return; }
+  apiGet({ action:'list', cat:'all' }, function(err, data) {
+    if (err) { cb(err); return; }
+    dataCache.items = data.items || [];
+    dataCache.loaded = true;
+    items = dataCache.items;
+    cb(null);
+  });
+}
+
+/* ========== DATA ========== */
+
+var condColor = {'完整':'#3d7a5e','有衝':'#ba7517','有破':'#a32d2d','有汙':'#ba7517','有破損':'#a32d2d','有裂':'#ba7517','有損':'#a32d2d'};
+var CAB_NAMES = {A:'左前',B:'右前',C:'左後',D:'右後'};
+var CATS      = {CQ:{n:'瓷器',e:'🏺'},ZH:{n:'字畫',e:'🖌️'},YQ:{n:'玉器',e:'💚'},ZX:{n:'雜項',e:'⚗️'}};
+var CAT_COLORS= {CQ:'#d4e8f0',ZH:'#f0e4d0',YQ:'#e8f0e0',ZX:'#f0e8d0'};
+var CAT_FIELD_LABELS = {
+  CQ:{f2:'朝代',f3:'窯口',f4:'工藝／裝飾',desc_hint:'簡述（含紋飾、底款）'},
+  ZH:{f2:'年代', f3:'作者',f4:'型式與媒材',desc_hint:'簡述（引首、鈐印、跋）'},
+  YQ:{f2:'年代', f3:'玉種',f4:'器型',        desc_hint:'簡述'},
+  ZX:{f2:'年代', f3:'媒材',f4:'型制',         desc_hint:'簡述'},
+};
+var COND_OPTS = {CQ:['完整','有衝','有破'],ZH:['完整','有汙','有破損'],YQ:['完整','有裂','有破損'],ZX:['完整','有損']};
+var AI_MOCK   = {
+  CQ:{dynasty:'清代（推測）',kiln:'景德鎮窯',craft:'青花',desc:'器身以青花繪山水紋飾，用筆流暢，發色純正。頸部飾如意紋一週，腹部主紋為山石林木。底款書「大清乾隆年製」楷書款，字體工整。'},
+  ZH:{dynasty:'民國（推測）',kiln:'佚名',craft:'水墨紙本',desc:'水墨山水，筆墨疏秀，皴法以披麻皴為主。引首鈐朱文印一方，款識書於左下角。'},
+  YQ:{dynasty:'清代（推測）',kiln:'青白玉',craft:'薄胎陰線',desc:'玉質細膩，微帶青色。器表陰線飾卷草紋，線條流暢均勻。底部無款。'},
+  ZX:{dynasty:'明代（推測）',kiln:'銅',craft:'失蠟鑄造',desc:'銅鑄造，表面有自然包漿，局部殘留鎏金痕跡。造型端正，比例協調。底部有鑄款。'},
+};
+
+var DEMO_ITEMS = [
+  {id:'CQ-1150429-001',cat:'CQ',name:'青花纏枝蓮紋大罐',dynasty:'明代',kiln:'景德鎮窯',craft:'青花',size:'口徑14／腹徑32／高38cm',cond:'完整',desc:'通體以青花繪纏枝蓮紋，底款書「大明宣德年製」楷書款。',price:'NT$ 380,000',loc:'L-01-A-2',note:'品相完好，釉色溫潤',color:'#d4e8f0',emoji:'🏺',images:['🏺','🏺','🏺'],folderId:'',folderUrl:'',isNew:false},
+  {id:'CQ-1150429-002',cat:'CQ',name:'粉彩花鳥紋膽瓶',dynasty:'清代',kiln:'景德鎮窯',craft:'粉彩',size:'口徑3／底徑7／高28cm',cond:'有衝',desc:'瓶身以粉彩繪折枝花卉及飛鳥，口沿有衝線約1cm。',price:'NT$ 120,000',loc:'L-01-B-3',note:'口沿衝線已標記',color:'#f0e8d4',emoji:'🪷',images:['🪷','🪷'],folderId:'',folderUrl:'',isNew:false},
+  {id:'ZH-1150429-001',cat:'ZH',name:'溥心畬山水冊頁',dynasty:'民國',kiln:'溥心畬',craft:'水墨紙本',size:'24×32cm×12頁',cond:'完整',desc:'十二頁山水冊頁，筆墨疏秀，意境清遠。',price:'NT$ 180,000',loc:'L-03-A-2',note:'12頁全冊，附原裝錦盒',color:'#f0e4d0',emoji:'🖌️',images:['🖌️','🖌️'],folderId:'',folderUrl:'',isNew:false},
+  {id:'YQ-1150429-001',cat:'YQ',name:'白玉壽星擺件',dynasty:'清代',kiln:'和田白玉',craft:'圓雕',size:'高18cm',cond:'完整',desc:'白玉質細膩，雕壽星老翁，手持壽桃，雕工精細。',price:'NT$ 95,000',loc:'R-03-2',note:'含木質底座',color:'#e8f0e0',emoji:'💚',images:['💚','💚'],folderId:'',folderUrl:'',isNew:false},
+  {id:'ZX-1150429-001',cat:'ZX',name:'銅鎏金觀音像',dynasty:'明代',kiln:'銅鎏金',craft:'失蠟鑄造',size:'高32cm',cond:'完整',desc:'觀音結跏趺坐，全身鎏金保存完好。蓮座下鑄「大明萬曆年施」款。',price:'NT$ 320,000',loc:'R-04-1',note:'鎏金完整，品相極佳',color:'#f0e8d0',emoji:'⚗️',images:['⚗️','⚗️'],folderId:'',folderUrl:'',isNew:false},
+];
+
+var items = [];
+
+/* ========== STATE ========== */
+
+var mode       = 'browse';
+var currentCat = 'all';
+var currentItem= null;
+var editMode   = false;
+var changedKeys= [];
+var viewImgIdx = 0;
+var driveImages= [];   // [{id,name,thumb,url}] loaded lazily for currentItem
+var imgsLoading= false;
+var batchMode     = false;
+var batchSelected = new Set();
+var FS = {step:1,cat:'',photo:false,photoFiles:[],photoPreviewUrls:[],photoCompressed:[],aiDone:false,aiLoad:false,selCab:null,selLayer:null,loc:'',name:'',size:'',cond:'',dynasty:'',kiln:'',craft:'',desc:'',price:'',note:'',newId:'',newFolderId:'',newFolderUrl:''};
+
+/* ========== INIT ========== */
+
+document.getElementById('tabBrowse').addEventListener('click',function(){switchMode('browse');});
+document.getElementById('tabFile').addEventListener('click',function(){switchMode('file');});
+document.getElementById('hsetupBtn').addEventListener('click',function(){showSetup();});
+
+function init() {
+  // 處理 QR code 掃描：?id=CQ-1150429-001
+  var urlParams = new URLSearchParams(window.location.search);
+  var deepId    = urlParams.get('id');
+
+  if (!WEBAPP_URL) {
+    showSetup();
+  } else {
+    renderBrowse();
+    initFileMode();
+    document.getElementById('fileMode').style.display = 'none';
+  }
+
+  // 若有 deep link id，等資料載入後開啟
+  if (deepId) {
+    loadItems(false, function(err) {
+      if (err) return;
+      var found = dataCache.items.find(function(i){ return i.id === deepId; });
+      if (found) {
+        // 若剛才進 setupScreen，先切到 browse
+        if (WEBAPP_URL) {
+          document.getElementById('browseMode').style.display = '';
+          document.getElementById('fileMode').style.display   = 'none';
+          document.getElementById('tabBrowse').className = 'tab on';
+          document.getElementById('tabFile').className   = 'tab';
+          mode = 'browse';
+        }
+        openDetail(deepId);
+      }
+    });
+  }
+}
+
+/* ========== SETUP SCREEN ========== */
+
+function showSetup() {
+  document.getElementById('browseMode').innerHTML = renderSetupHtml();
+  document.getElementById('fileMode').style.display = 'none';
+  document.getElementById('tabBrowse').className = 'tab on';
+  document.getElementById('tabFile').className = 'tab';
+  mode = 'browse';
+  bindSetup();
+}
+
+function renderSetupHtml() {
+  return '<div class="setup-screen">'
+    +'<div class="setup-title">連線設定</div>'
+    +'<div class="setup-sub">請依照以下步驟建立 Google Sheets 資料庫，完成後貼上 Web App URL 即可開始使用。</div>'
+    +'<div class="setup-step"><div class="setup-step-num">1</div><div class="setup-step-body">前往 <b>Google 雲端硬碟</b>，新增一份 <b>Google 試算表</b>，命名為「迪化街典藏資料庫」</div></div>'
+    +'<div class="setup-step"><div class="setup-step-num">2</div><div class="setup-step-body">開啟試算表 → 上方選單「<b>擴充功能</b>」→「<b>Apps Script</b>」→ 將 <code>Code.gs</code> 的內容全部貼入 → 按「儲存」</div></div>'
+    +'<div class="setup-step"><div class="setup-step-num">3</div><div class="setup-step-body">在 Apps Script 中按「<b>執行</b>」→ 選擇函式 <code>setupSheets</code> → 授予權限後執行，四個工作表將自動建立</div></div>'
+    +'<div class="setup-step"><div class="setup-step-num">4</div><div class="setup-step-body">右上角「<b>部署</b>」→「新增部署」→ 類型選「網路應用程式」<br>執行身分：<b>我</b> ／ 存取權：<b>所有人</b> → 按「部署」→ 複製 Web App URL</div></div>'
+    +'<div class="setup-url-row">'
+    +'<input class="setup-url-input" id="setupUrlInput" placeholder="貼上 Web App URL（https://script.google.com/macros/s/...）" value="'+(WEBAPP_URL||'')+'"><button class="setup-url-btn" id="setupSaveBtn">確認連線</button>'
+    +'</div>'
+    +'<div class="setup-error" id="setupError"></div>'
+    +'<button class="setup-demo-btn" id="setupDemoBtn">先使用範例資料（離線模式）</button>'
+    +'</div>';
+}
+
+function bindSetup() {
+  document.getElementById('setupSaveBtn').addEventListener('click', function(){
+    var url = (document.getElementById('setupUrlInput').value || '').trim();
+    var errEl = document.getElementById('setupError');
+    if (!url || url.indexOf('script.google.com') < 0) {
+      errEl.textContent = '請貼入正確的 Web App URL（應包含 script.google.com）';
+      errEl.style.display = 'block';
+      return;
+    }
+    errEl.style.display = 'none';
+    document.getElementById('setupSaveBtn').textContent = '測試中⋯';
+    document.getElementById('setupSaveBtn').disabled = true;
+    // Test connection
+    fetch(url + '?action=list&cat=CQ')
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (d.ok !== undefined) {
+          localStorage.setItem('dbWebappUrl', url);
+          WEBAPP_URL = url;
+          DEMO_MODE  = false;
+          dataCache  = { loaded: false, items: [] };
+          renderBrowse();
+          initFileMode();
+          document.getElementById('fileMode').style.display = 'none';
+        } else {
+          throw new Error('回應格式不正確');
+        }
+      })
+      .catch(function(e){
+        errEl.textContent = '連線失敗：' + (e.message || '請確認 URL 是否正確、部署設定是否為「所有人」');
+        errEl.style.display = 'block';
+        document.getElementById('setupSaveBtn').textContent = '確認連線';
+        document.getElementById('setupSaveBtn').disabled = false;
+      });
+  });
+  document.getElementById('setupDemoBtn').addEventListener('click', function(){
+    DEMO_MODE = true;
+    dataCache = { loaded: false, items: [] };
+    renderBrowse();
+    initFileMode();
+    document.getElementById('fileMode').style.display = 'none';
+  });
+}
+
+function switchMode(m) {
+  mode = m;
+  document.getElementById('tabBrowse').className = 'tab'+(m==='browse'?' on':'');
+  document.getElementById('tabFile').className   = 'tab'+(m==='file'?' on':'');
+  document.getElementById('browseMode').style.display = m==='browse'?'':'none';
+  document.getElementById('fileMode').style.display   = m==='file'?'':'none';
+  if (m==='browse') renderBrowse();
+  else initFileMode();
+}
+
+/* ========== BROWSE MODE ========== */
+
+function renderBrowse(q, noReload) {
+  q = q || '';
+  var browseEl = document.getElementById('browseMode');
+
+  if (!dataCache.loaded && !noReload) {
+    browseEl.innerHTML = '<div class="loading-screen"><div class="spinner"></div><div style="font-size:12px;color:var(--ink3);letter-spacing:1px">載入典藏資料中⋯</div></div>';
+    loadItems(false, function(err) {
+      if (err) {
+        browseEl.innerHTML = '<div style="padding:16px"><div class="error-bar"><span class="error-msg">⚠ 載入失敗：'+escHtml(err)+'</span><span class="error-retry" id="retryBtn">重試</span></div></div>';
+        document.getElementById('retryBtn')&&document.getElementById('retryBtn').addEventListener('click',function(){renderBrowse(q);});
+        return;
+      }
+      renderBrowse(q, true);
+      lazyCoverLoad();
+    });
+    return;
+  }
+
+  items = dataCache.items;
+
+  var filtered = items.filter(function(i) {
+    var catOk = currentCat==='all' || i.cat===currentCat;
+    var qOk = !q || [i.name,i.dynasty,i.kiln,i.craft,i.loc,i.id,i.desc,i.note].some(function(v){
+      return v && v.toLowerCase().indexOf(q.toLowerCase())>=0;
+    });
+    return catOk && qOk;
+  });
+
+  var cats = ['all','CQ','ZH','YQ','ZX'];
+  var catLabels = {all:'全部',CQ:'CQ 瓷器',ZH:'ZH 字畫',YQ:'YQ 玉器',ZX:'ZX 雜項'};
+  var catBar = '<div class="catbar">'+cats.map(function(c){
+    var cnt = c==='all'?items.length:items.filter(function(i){return i.cat===c;}).length;
+    return '<button class="catf'+(currentCat===c?' on':'')+'" data-cat="'+c+'">'+catLabels[c]+' <span style="opacity:.5">'+cnt+'</span></button>';
+  }).join('')+'</div>';
+
+  var modeNote = (DEMO_MODE && !WEBAPP_URL)
+    ? '<div style="background:rgba(196,125,62,0.1);border-bottom:1px solid rgba(196,125,62,0.2);padding:7px 16px;font-size:11px;color:var(--accent2)">離線範例模式 — <span style="cursor:pointer;text-decoration:underline" id="goSetupLink">點此連線 Google Sheets</span></div>'
+    : '';
+
+  var grid = filtered.length===0
+    ? '<div class="empty"><div style="font-size:28px;margin-bottom:8px">🔍</div><div>查無符合品項</div></div>'
+    : '<div class="grid">'+filtered.map(function(item){
+        var clr = item.color || CAT_COLORS[item.cat] || '#e0d8c8';
+        var emj = item.emoji || CATS[item.cat].e;
+        var cardImgInner = item.coverThumb
+          ? '<img src="'+escHtml(item.coverThumb)+'" alt="" loading="lazy" onerror="this.remove()">' + emj
+          : emj;
+        var isSel = batchMode && batchSelected.has(item.id);
+        return '<div class="card'+(isSel?' b-sel':'')+'" data-id="'+item.id+'">'
+          +(batchMode?'<div class="batch-chk">'+(isSel?'✓':'')+'</div>':'')
+          +(item.isNew?'<div class="new-badge">新建</div>':'')
+          +'<div class="card-img" style="background:'+clr+'28">'+cardImgInner+'</div>'
+          +'<div class="card-body"><div class="card-id">'+item.id+'</div>'
+          +'<div class="card-name">'+hlText(item.name, q)+'</div>'
+          +'<div class="card-meta"><span>'+hlText(item.dynasty, q)+'</span>'
+          +'<span><span class="sdot" style="background:'+(condColor[item.cond]||'#888')+'"></span>'+escHtml(item.cond)+'</span>'
+          +'</div></div></div>';
+      }).join('')+'</div>';
+
+  var batchBar = batchMode
+    ? '<div class="batch-bar">'
+      +'<button class="bbtn" id="batchCancel">取消</button>'
+      +'<span class="batch-info">已選 <b>'+batchSelected.size+'</b> 件</span>'
+      +'<button class="bbtn" id="batchSelAll">全選('+(filtered.length)+')</button>'
+      +'<button class="bbtn primary" id="batchPrint"'+(batchSelected.size?'':' disabled')+'>🖨 列印 '+batchSelected.size+' 張</button>'
+      +'</div>'
+    : '';
+
+  browseEl.innerHTML = catBar + modeNote + batchBar
+    + '<div class="toolbar"><div class="search-wrap"><span class="search-icon">⌕</span>'
+    + '<input id="searchInput" type="text" placeholder="搜尋品名、朝代、位置…" value="'+escHtml(q)+'"></div>'
+    + '<div class="count">'+filtered.length+' 件</div>'
+    + '<button class="tbatch'+(batchMode?' on':'')+'" id="batchToggle">'+(batchMode?'✕':'🖨')+'</button>'
+    + '</div>'
+    + grid;
+
+  document.getElementById('searchInput').addEventListener('input',function(){renderBrowse(this.value, true);});
+  document.querySelectorAll('.catf').forEach(function(el){
+    el.addEventListener('click',function(){
+      currentCat=this.getAttribute('data-cat');
+      renderBrowse(document.getElementById('searchInput')?document.getElementById('searchInput').value:'', true);
+    });
+  });
+  var batchToggleEl=document.getElementById('batchToggle');
+  if(batchToggleEl) batchToggleEl.addEventListener('click',function(){
+    batchMode=!batchMode; if(!batchMode) batchSelected.clear();
+    renderBrowse(document.getElementById('searchInput')?document.getElementById('searchInput').value:'', true);
+  });
+  var batchCancelEl=document.getElementById('batchCancel');
+  if(batchCancelEl) batchCancelEl.addEventListener('click',function(){
+    batchMode=false; batchSelected.clear();
+    renderBrowse(document.getElementById('searchInput')?document.getElementById('searchInput').value:'', true);
+  });
+  var batchSelAllEl=document.getElementById('batchSelAll');
+  if(batchSelAllEl) batchSelAllEl.addEventListener('click',function(){
+    filtered.forEach(function(i){batchSelected.add(i.id);});
+    renderBrowse(document.getElementById('searchInput')?document.getElementById('searchInput').value:'', true);
+  });
+  var batchPrintEl=document.getElementById('batchPrint');
+  if(batchPrintEl && !batchPrintEl.disabled) batchPrintEl.addEventListener('click', printBatchLabels);
+  document.querySelectorAll('.card').forEach(function(el){
+    el.addEventListener('click',function(){
+      var id=this.getAttribute('data-id');
+      if(batchMode){
+        if(batchSelected.has(id)) batchSelected.delete(id); else batchSelected.add(id);
+        renderBrowse(document.getElementById('searchInput')?document.getElementById('searchInput').value:'', true);
+      } else { openDetail(id); }
+    });
+  });
+  var goSetup = document.getElementById('goSetupLink');
+  if (goSetup) goSetup.addEventListener('click', showSetup);
+}
+
+function escHtml(s){return(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+function hlText(s, q) {
+  var safe = escHtml(s||'');
+  if (!q || q.length < 1) return safe;
+  var eq = escHtml(q).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  return safe.replace(new RegExp('('+eq+')', 'gi'), '<mark>$1</mark>');
+}
+
+// 懶加載封面：找出有 folderId 但無 coverThumb 的品項，逐一抓第一張圖
+function lazyCoverLoad() {
+  if (!WEBAPP_URL || DEMO_MODE) return;
+  var pending = dataCache.items.filter(function(i){ return i.folderId && !i.coverThumb; });
+  if (!pending.length) return;
+  var idx = 0;
+  function next() {
+    if (idx >= pending.length) return;
+    var item = pending[idx++];
+    apiGet({ action:'images', itemId:item.id }, function(err, data) {
+      if (!err && data && data.images && data.images.length) {
+        var thumb = data.images[0].thumb;
+        // 更新 cache
+        item.coverThumb = thumb;
+        var cIdx = dataCache.items.findIndex(function(i){ return i.id === item.id; });
+        if (cIdx >= 0) dataCache.items[cIdx].coverThumb = thumb;
+        // 直接更新卡片 DOM，不用重新 render 整個 grid
+        var cardImg = document.querySelector('.card[data-id="'+item.id+'"] .card-img');
+        if (cardImg && !cardImg.querySelector('img')) {
+          var imgEl = document.createElement('img');
+          imgEl.src = thumb;
+          imgEl.onerror = function(){ this.remove(); };
+          cardImg.insertBefore(imgEl, cardImg.firstChild);
+        }
+        // 寫回 Sheets 第 15 欄（靜默，不等回應）
+        if (WEBAPP_URL) apiPost({ action:'setCover', itemId:item.id, thumb:thumb }, function(){});
+      }
+      setTimeout(next, 300); // 每 300ms 一筆，避免同時打太多請求
+    });
+  }
+  next();
+}
+
+/* ========== DETAIL PANEL ========== */
+
+function itemColor(item){ return item.color || CAT_COLORS[item.cat] || '#e0d8c8'; }
+function itemEmoji(item){ return item.emoji || CATS[item.cat].e; }
+
+function openDetail(id){
+  currentItem = dataCache.items.find(function(i){return i.id===id;});
+  if (!currentItem) return;
+  editMode=false; changedKeys=[]; viewImgIdx=0; driveImages=[];
+  renderPanel();
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('overlay').onclick = function(e){if(e.target===this)closeDetail();};
+  // 載入 Drive 圖片（若有資料夾）
+  if (currentItem.folderId && WEBAPP_URL && !DEMO_MODE) {
+    loadDriveImages(currentItem.id);
+  }
+}
+function closeDetail(){
+  document.getElementById('overlay').classList.remove('open');
+  editMode=false; changedKeys=[]; driveImages=[]; imgsLoading=false;
+}
+
+function loadDriveImages(itemId) {
+  imgsLoading = true;
+  updateImgStrip();
+  apiGet({ action:'images', itemId:itemId }, function(err, data) {
+    imgsLoading = false;
+    if (err || !data) { updateImgStrip(); return; }
+    driveImages = data.images || [];
+    if (viewImgIdx >= driveImages.length && driveImages.length > 0) viewImgIdx = 0;
+    updateImgStrip();
+  });
+}
+
+function updateImgStrip() {
+  var mainEl  = document.getElementById('panelImgMain');
+  var thumbEl = document.getElementById('panelImgs');
+  if (!mainEl || !thumbEl) return;
+
+  var d   = currentItem;
+  var clr = itemColor(d);
+  var emj = itemEmoji(d);
+
+  // Loading bar
+  var loadBar = document.getElementById('imgLoadBar');
+  if (loadBar) loadBar.style.display = imgsLoading ? 'block' : 'none';
+
+  var hasDrive = driveImages && driveImages.length > 0;
+  var showImgs = hasDrive ? driveImages : (d.images && d.images.length ? d.images : [emj]);
+  var total    = showImgs.length;
+  if (viewImgIdx >= total) viewImgIdx = Math.max(0, total - 1);
+
+  // ── 大圖區 ──
+  var mainInner = '';
+  if (total > 0) {
+    var cur = showImgs[viewImgIdx];
+    if (hasDrive) {
+      mainInner = '<img src="'+cur.thumb+'" alt="'+escHtml(cur.name)+'" onerror="this.style.display=\'none\'">';
+    } else {
+      mainInner = '<span class="img-placeholder">'+cur+'</span>';
+    }
+    if (total > 1) {
+      mainInner += '<button class="img-nav prev" id="imgPrev">‹</button>'
+                 + '<button class="img-nav next" id="imgNext">›</button>';
+    }
+    mainInner += '<span class="img-counter">'+(viewImgIdx+1)+' / '+total+'</span>';
+  } else {
+    mainInner = '<span class="img-placeholder">'+emj+'</span>';
+  }
+  mainEl.innerHTML = mainInner;
+  mainEl.style.background = hasDrive ? '#1a1612' : clr+'18';
+
+  // nav buttons
+  var prevBtn = document.getElementById('imgPrev');
+  var nextBtn = document.getElementById('imgNext');
+  if (prevBtn) prevBtn.onclick = function(e){ e.stopPropagation(); viewImgIdx=(viewImgIdx-1+total)%total; updateImgStrip(); };
+  if (nextBtn) nextBtn.onclick = function(e){ e.stopPropagation(); viewImgIdx=(viewImgIdx+1)%total; updateImgStrip(); };
+
+  // 大圖點擊 → 開新分頁（Drive 圖片）
+  if (hasDrive && showImgs[viewImgIdx]) {
+    mainEl.onclick = function(){ window.open(showImgs[viewImgIdx].url, '_blank'); };
+    mainEl.title = '點擊開啟原圖';
+  } else {
+    mainEl.onclick = null;
+    mainEl.title = '';
+  }
+
+  // ── 縮圖列 ──
+  var thumbHtml = '';
+  showImgs.forEach(function(img, idx){
+    var active = idx === viewImgIdx;
+    var inner  = hasDrive
+      ? '<img src="'+img.thumb+'" alt="'+escHtml(img.name)+'" loading="lazy" onerror="this.style.display=\'none\'">'
+      : '<span style="font-size:22px">'+img+'</span>';
+    thumbHtml += '<div class="thumb-slot">'
+      + '<div class="thumb-box'+(active?' active':'')+'" data-imgidx="'+idx+'" style="background:'+clr+'22">'+inner+'</div>'
+      + (editMode && hasDrive ? '<button class="thumb-del" data-delidx="'+idx+'" data-fileid="'+escHtml(img.id||'')+'">✕</button>' : '')
+      + (editMode && !hasDrive && total > 1 ? '<button class="thumb-del" data-delidx="'+idx+'">✕</button>' : '')
+      + '</div>';
+  });
+  if (editMode) {
+    thumbHtml += '<button class="thumb-add" id="imgAddBtn"'+(imgsLoading?' disabled':'')+' title="上傳圖片">'
+      + '<span>＋</span><span class="thumb-add-lbl">新增</span></button>';
+  }
+
+  thumbEl.innerHTML = thumbHtml;
+  thumbEl.className = 'panel-img-thumbs' + (editMode ? ' edit-thumbs' : '');
+  // 隱藏縮圖列（若只有 1 張且非編輯模式）
+  thumbEl.style.display = (total <= 1 && !editMode) ? 'none' : '';
+
+  // 縮圖點擊
+  thumbEl.querySelectorAll('.thumb-box[data-imgidx]').forEach(function(el){
+    el.onclick = function(){ viewImgIdx = parseInt(this.getAttribute('data-imgidx')); updateImgStrip(); };
+  });
+
+  // 刪除按鈕
+  if (editMode) {
+    thumbEl.querySelectorAll('.thumb-del').forEach(function(btn){
+      btn.onclick = function(e){
+        e.stopPropagation();
+        var idx    = parseInt(this.getAttribute('data-delidx'));
+        var fileId = this.getAttribute('data-fileid');
+        if (fileId && WEBAPP_URL && !DEMO_MODE) {
+          if (!confirm('刪除此圖片？')) return;
+          this.disabled = true;
+          apiPost({action:'deleteImage', fileId:fileId}, function(err){
+            if (err) { alert('刪除失敗：'+err); return; }
+            driveImages.splice(idx, 1);
+            if (viewImgIdx >= driveImages.length && driveImages.length > 0) viewImgIdx = 0;
+            updateImgStrip();
+          });
+        } else {
+          if (!currentItem.images || currentItem.images.length <= 1) return;
+          currentItem.images.splice(idx, 1);
+          if (viewImgIdx >= currentItem.images.length) viewImgIdx = currentItem.images.length - 1;
+          updateImgStrip();
+        }
+      };
+    });
+
+    var addBtn = document.getElementById('imgAddBtn');
+    if (addBtn) addBtn.onclick = function(){ document.getElementById('imgFileInput').click(); };
+  }
+}
+
+function renderPanel(){
+  var d   = currentItem;
+  var lbl = CAT_FIELD_LABELS[d.cat] || CAT_FIELD_LABELS.CQ;
+  var condOpts = COND_OPTS[d.cat] || COND_OPTS.CQ;
+  var clr = itemColor(d);
+  var emj = itemEmoji(d);
+
+  var fields = [
+    {row:[{label:'位置',key:'loc',type:'text'},{label:'品像',key:'cond',type:'select',opts:condOpts}]},
+    {sec:'品項資訊'},
+    {key:'name',label:'品項名稱',type:'text'},
+    {row:[{label:lbl.f2,key:'dynasty',type:'text'},{label:lbl.f3,key:'kiln',type:'text'}]},
+    {row:[{label:lbl.f4,key:'craft',type:'text'},{label:'尺寸',key:'size',type:'text'}]},
+    {sec:'詳細說明'},
+    {key:'desc',label:lbl.desc_hint,type:'textarea'},
+    {sec:'市場參考'},
+    {row:[{label:'參考價',key:'price',type:'text'},{label:'備註',key:'note',type:'text'}]},
+  ];
+
+  // 圖片區域（updateImgStrip 稍後填入真實內容）
+  var imgHtml = '<div class="panel-img-section" id="panelImgSection">'
+    + '<div id="imgLoadBar" class="img-loading-bar" style="display:none"></div>'
+    + '<div class="panel-img-main" id="panelImgMain"></div>'
+    + '<div class="panel-img-thumbs" id="panelImgs"></div>'
+    + '</div>'
+    + '<input type="file" id="imgFileInput" accept="image/*" multiple style="display:none">';
+
+  // Drive link
+  var driveHtml = '';
+  if (d.folderUrl) {
+    driveHtml = '<div style="padding:8px 16px;background:var(--paper2);border-bottom:1px solid var(--border)">'
+      +'<a class="drive-link" href="'+d.folderUrl+'" target="_blank">📁 查看 Drive 圖片資料夾</a></div>';
+  }
+
+  var fieldsHtml = '<div class="panel-fields">';
+  fields.forEach(function(f){
+    if(f.sec!==undefined){fieldsHtml+='<div class="psec">'+f.sec+'</div>';return;}
+    if(f.row) fieldsHtml+='<div class="pfrow">'+f.row.map(function(rf){return renderField(rf,d);}).join('')+'</div>';
+    else fieldsHtml+=renderField(f,d);
+  });
+  fieldsHtml += '</div>';
+
+  // Meta info
+  var metaHtml = '';
+  if (d.updatedAt || d.createdAt) {
+    metaHtml = '<div class="pmeta">'
+      +(d.createdAt?'建立：'+d.createdAt+'　':'')
+      +(d.updatedAt?'更新：'+d.updatedAt:'')
+      +'</div>';
+  }
+
+  var actHtml = !editMode
+    ? '<div class="act-bar"><button class="act-btn" id="copyBtn"><span class="act-btn-icon">📋</span><span>複製資訊</span></button><button class="act-btn" id="labelBtn"><span class="act-btn-icon">🏷</span><span>標籤</span></button><button class="act-btn primary" id="editBtn"><span class="act-btn-icon">✏️</span><span>編輯</span></button><button class="act-btn danger" id="deleteBtn"><span class="act-btn-icon">🗑</span><span>刪除</span></button></div>'
+    : '<div class="act-bar"><button class="act-btn" id="cancelBtn" style="flex:.6"><span class="act-btn-icon">✕</span><span>取消</span></button><button class="act-btn primary" id="saveBtn" style="flex:1.4"><span class="act-btn-icon">💾</span><span>儲存變更</span></button></div>';
+
+  document.getElementById('panel').innerHTML =
+    '<div class="panel-header"><div class="panel-id"><span style="color:rgba(245,240,232,0.35);margin-right:6px">'+CATS[d.cat].e+'</span>'+d.id+'</div>'
+    +'<button class="pbtn-close" id="closeBtn">✕</button></div>'
+    + imgHtml + driveHtml + fieldsHtml + metaHtml + actHtml;
+
+  document.getElementById('closeBtn').onclick = closeDetail;
+
+  // Populate image strip
+  updateImgStrip();
+
+  // File input handler for uploading images
+  var fileInput = document.getElementById('imgFileInput');
+  if (fileInput) {
+    fileInput.onchange = function(){
+      var files = Array.prototype.slice.call(this.files);
+      if (!files.length) return;
+      uploadFiles(files);
+      this.value = '';
+    };
+  }
+
+  // 拖曳上傳
+  var imgSection = document.getElementById('panelImgSection');
+  if (imgSection) {
+    imgSection.addEventListener('dragover', function(e){
+      e.preventDefault();
+      e.stopPropagation();
+      if (editMode) imgSection.classList.add('drag-over');
+    });
+    imgSection.addEventListener('dragleave', function(e){
+      if (!imgSection.contains(e.relatedTarget)) imgSection.classList.remove('drag-over');
+    });
+    imgSection.addEventListener('drop', function(e){
+      e.preventDefault();
+      e.stopPropagation();
+      imgSection.classList.remove('drag-over');
+      if (!editMode) return;
+      var files = Array.prototype.slice.call(e.dataTransfer.files).filter(function(f){ return f.type.indexOf('image/') === 0; });
+      if (files.length) uploadFiles(files);
+    });
+  }
+
+  if (!editMode) {
+    document.getElementById('editBtn').onclick = function(){editMode=true;changedKeys=[];renderPanel();};
+    document.getElementById('labelBtn').onclick = function(){ showLabelPreview(d); };
+    document.getElementById('copyBtn').onclick = function(){
+      var txt='【'+d.id+'】'+d.name+'\n'+lbl.f2+'：'+d.dynasty+'　'+lbl.f3+'：'+d.kiln
+        +'\n'+lbl.f4+'：'+d.craft+'　尺寸：'+d.size
+        +'\n品像：'+d.cond+'　位置：'+d.loc
+        +'\n簡述：'+d.desc+'\n參考價：'+d.price;
+      navigator.clipboard&&navigator.clipboard.writeText(txt);
+      var btn=document.getElementById('copyBtn');
+      if(btn){btn.querySelector('.act-btn-icon').textContent='✅';setTimeout(function(){btn&&(btn.querySelector('.act-btn-icon').textContent='📋');},1500);}
+    };
+    document.getElementById('deleteBtn').onclick = function(){confirmDelete(d.id);};
+  } else {
+    document.getElementById('saveBtn').onclick   = saveEdit;
+    document.getElementById('cancelBtn').onclick = function(){editMode=false;changedKeys=[];renderPanel();};
+  }
+
+  if (changedKeys.length>0) {
+    changedKeys.forEach(function(k){
+      var el=document.querySelector('[data-key="'+k+'"]');
+      if(el){el.classList.add('highlight');setTimeout(function(){el&&el.classList.remove('highlight');},2500);}
+    });
+  }
+}
+
+function renderField(f,d){
+  var val = d[f.key]||'';
+  var hl  = changedKeys.indexOf(f.key)>=0;
+  var inner='';
+  if (!editMode) {
+    if (f.key==='cond') inner='<div class="pfv"><span class="sbadge" style="background:'+(condColor[val]||'#888')+'22;color:'+(condColor[val]||'#888')+'"><span class="sdot" style="background:'+(condColor[val]||'#888')+'"></span>'+escHtml(val)+'</span></div>';
+    else inner='<div class="pfv'+(f.type==='textarea'?' multiline':'')+(hl?' highlight':'')+'">'+escHtml(val)+'</div>';
+  } else {
+    if      (f.type==='textarea') inner='<textarea class="ffi'+(hl?' highlight':'')+'" data-key="'+f.key+'" style="width:100%">'+escHtml(val)+'</textarea>';
+    else if (f.type==='select')   inner='<select class="ffi'+(hl?' highlight':'')+'" data-key="'+f.key+'">'+(f.opts||[]).map(function(o){return '<option'+(val===o?' selected':'')+'>'+o+'</option>';}).join('')+'</select>';
+    else                          inner='<input class="ffi'+(hl?' highlight':'')+'" data-key="'+f.key+'" value="'+escHtml(val)+'">';
+  }
+  return '<div class="pfg"><div class="pfl">'+f.label+'</div>'+inner+'</div>';
+}
+
+/* ========== DRIVE IMAGE UPLOAD ========== */
+
+function uploadFiles(files) {
+  if (!files || !files.length) return;
+  var addBtn = document.getElementById('imgAddBtn');
+  if (addBtn) addBtn.disabled = true;
+
+  var loadBar = document.getElementById('imgLoadBar');
+  if (loadBar) loadBar.style.display = 'block';
+
+  var queue = Array.prototype.slice.call(files);
+  var total = queue.length;
+  var done  = 0;
+
+  function nextFile() {
+    if (!queue.length) {
+      if (loadBar) loadBar.style.display = 'none';
+      if (addBtn) addBtn.disabled = false;
+      return;
+    }
+    var file = queue.shift();
+    compressAndUpload(file, function(err, imgObj) {
+      done++;
+      if (!err && imgObj) {
+        driveImages.push(imgObj);
+        viewImgIdx = driveImages.length - 1;
+        updateImgStrip();
+      }
+      nextFile();
+    });
+  }
+  nextFile();
+}
+
+function compressAndUpload(file, cb) {
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var img = new Image();
+    img.onload = function() {
+      // Compress: max 1200px on longest side, JPEG quality 0.82
+      var MAX = 1200;
+      var w = img.width, h = img.height;
+      if (w > MAX || h > MAX) {
+        if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+        else       { w = Math.round(w * MAX / h); h = MAX; }
+      }
+      var canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      var dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+      var base64  = dataUrl.split(',')[1];
+      var mimeType= 'image/jpeg';
+      var ts = new Date().toISOString().replace(/[-:T]/g,'').slice(0,14);
+      var fileName = currentItem.id + '_' + ts + '.jpg';
+
+      if (!WEBAPP_URL || DEMO_MODE) {
+        // Demo: just show locally with dataURL
+        cb(null, { id:'', name:fileName, thumb:dataUrl, url:dataUrl });
+        return;
+      }
+
+      apiPost({
+        action: 'uploadImage',
+        itemId: currentItem.id,
+        fileName: fileName,
+        base64Data: base64,
+        mimeType: mimeType
+      }, function(err, data) {
+        if (err) { alert('上傳失敗：'+err); cb(err); return; }
+        // 若目前品項尚無封面，更新 cache 讓卡片刷新後顯示新圖
+        if (!currentItem.coverThumb && data.thumb) {
+          currentItem.coverThumb = data.thumb;
+          var cIdx = dataCache.items.findIndex(function(i){return i.id===currentItem.id;});
+          if (cIdx >= 0) dataCache.items[cIdx].coverThumb = data.thumb;
+        }
+        cb(null, { id:data.id, name:data.name, thumb:data.thumb, url:data.url });
+      });
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function saveEdit(){
+  var newVals={};
+  document.querySelectorAll('[data-key]').forEach(function(el){
+    newVals[el.getAttribute('data-key')]=el.value;
+  });
+  var changed=[];
+  Object.keys(newVals).forEach(function(k){if(currentItem[k]!==newVals[k])changed.push(k);});
+  if (changed.length===0){editMode=false;renderPanel();return;}
+
+  var saveBtn=document.getElementById('saveBtn');
+  if(saveBtn){saveBtn.disabled=true;saveBtn.querySelector('span:last-child').textContent='儲存中⋯';}
+  showSaving();
+
+  var patch={};
+  changed.forEach(function(k){patch[k]=newVals[k];});
+
+  function applyLocally(){
+    changed.forEach(function(k){currentItem[k]=newVals[k];});
+    changedKeys=changed;
+    var savedId=currentItem.id;
+    var idx=dataCache.items.findIndex(function(i){return i.id===savedId;});
+    if(idx>=0)dataCache.items[idx]=currentItem;
+    editMode=false;
+    hideSaving();
+    renderPanel();
+    renderBrowse(document.getElementById('searchInput')?document.getElementById('searchInput').value:'',true);
+    // 高亮對應卡片
+    setTimeout(function(){
+      var card=document.querySelector('.card[data-id="'+savedId+'"]');
+      if(card){card.classList.add('card-saved');setTimeout(function(){card.classList.remove('card-saved');},1200);}
+    },50);
+  }
+
+  if (DEMO_MODE || !WEBAPP_URL) {
+    applyLocally();
+    return;
+  }
+
+  apiPost({action:'update', id:currentItem.id, item:patch}, function(err){
+    if (err) { hideSaving(); alert('儲存失敗：'+err); if(saveBtn){saveBtn.disabled=false;saveBtn.querySelector('span:last-child').textContent='儲存變更';} return; }
+    applyLocally();
+  });
+}
+
+/* ========== LABEL GENERATION ========== */
+
+// 核心繪製函數（單張）：畫好後以 callback 回傳 canvas
+function drawLabelCanvas(item, cb) {
+  var S = 10, W_MM = 68, H_MM = 24;
+  var W = W_MM * S, H = H_MM * S;
+  var QR_MM = 24, STRIP_MM = 11;
+  var CTR_X = QR_MM * S;
+  var CTR_W = (W_MM - QR_MM - STRIP_MM) * S;
+  var STRIP_X = (W_MM - STRIP_MM) * S;
+
+  var canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  var ctx = canvas.getContext('2d');
+
+  // 背景
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+
+  // 右側深色條
+  ctx.fillStyle = '#1a1612';
+  ctx.fillRect(STRIP_X, 0, STRIP_MM * S, H);
+
+  // 右側旋轉文字
+  ctx.save();
+  ctx.translate(STRIP_X + (STRIP_MM * S) / 2, H / 2);
+  ctx.rotate(Math.PI / 2);
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = 'bold ' + (2.8 * S) + 'px "Noto Sans TC", sans-serif';
+  ctx.fillText(item.id, 0, -(2.3 * S));
+  ctx.fillText('位置：' + (item.loc || ''), 0, (2.3 * S));
+  ctx.restore();
+
+  // 朝代（粗斜黑）
+  var cMidX = CTR_X + CTR_W / 2;
+  ctx.fillStyle = '#000000';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = 'bold italic ' + (3.5 * S) + 'px "Noto Serif TC", serif';
+  ctx.fillText(item.dynasty || '', cMidX, H * 0.27);
+
+  // 品名（盡量大）
+  ctx.fillStyle = '#000000';
+  var name = item.name || '';
+  var nfs = 6 * S;
+  ctx.font = 'bold ' + nfs + 'px "Noto Serif TC", serif';
+  while (ctx.measureText(name).width > CTR_W - S && nfs > 2.5 * S) {
+    nfs -= 0.25 * S;
+    ctx.font = 'bold ' + nfs + 'px "Noto Serif TC", serif';
+  }
+  if (ctx.measureText(name).width > CTR_W - S) {
+    nfs = 3.5 * S;
+    ctx.font = 'bold ' + nfs + 'px "Noto Serif TC", serif';
+    var mid = Math.ceil(name.length / 2);
+    ctx.fillText(name.slice(0, mid), cMidX, H * 0.57);
+    ctx.fillText(name.slice(mid), cMidX, H * 0.80);
+  } else {
+    ctx.fillText(name, cMidX, H * 0.70);
+  }
+
+  // 分隔線
+  ctx.strokeStyle = 'rgba(26,22,18,0.1)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(CTR_X, 3 * S); ctx.lineTo(CTR_X, H - 3 * S);
+  ctx.stroke();
+
+  // QR code（非同步）
+  var qrDiv = document.createElement('div');
+  qrDiv.style.cssText = 'position:absolute;left:-9999px';
+  document.body.appendChild(qrDiv);
+  var netlifyUrl = window.location.origin + window.location.pathname;
+  var qrUrl = netlifyUrl + '?id=' + encodeURIComponent(item.id);
+  var qrSize = QR_MM * S;
+  new QRCode(qrDiv, {text:qrUrl, width:qrSize, height:qrSize, colorDark:'#000000', colorLight:'#ffffff', correctLevel:QRCode.CorrectLevel.M});
+  setTimeout(function() {
+    var qrImg = qrDiv.querySelector('img') || qrDiv.querySelector('canvas');
+    if (qrImg) {
+      var doDraw = function() { ctx.drawImage(qrImg, 0, 0, qrSize, qrSize); qrDiv.remove(); cb(canvas); };
+      if (qrImg.tagName === 'IMG' && !qrImg.complete) { qrImg.onload = doDraw; } else { doDraw(); }
+    } else { qrDiv.remove(); cb(canvas); }
+  }, 80);
+}
+
+function showLabelPreview(item) {
+  var old = document.getElementById('lblModal');
+  if (old) old.remove();
+  var modal = document.createElement('div');
+  modal.className = 'lbl-modal'; modal.id = 'lblModal';
+  modal.innerHTML =
+    '<div class="lbl-box">'
+    + '<div class="lbl-header"><div class="lbl-title">產生標籤</div><button class="lbl-close" id="lblClose">✕</button></div>'
+    + '<div class="lbl-body">'
+    + '<div class="lbl-hint">24mm 標籤帶　橫式　掃描 QR 開啟品項頁面</div>'
+    + '<div class="lbl-canvas-wrap" id="lblCanvasWrap"><div style="padding:20px;color:var(--ink3);font-size:12px">生成中…</div></div>'
+    + '<div class="lbl-actions"><button class="lbl-dl" id="lblDownload">⬇ 儲存為 PNG</button><button class="lbl-dismiss" id="lblDismiss">關閉</button></div>'
+    + '</div></div>';
+  document.body.appendChild(modal);
+  document.getElementById('lblClose').onclick = function(){ modal.remove(); };
+  document.getElementById('lblDismiss').onclick = function(){ modal.remove(); };
+  modal.addEventListener('click', function(e){ if(e.target===modal) modal.remove(); });
+
+  drawLabelCanvas(item, function(canvas) {
+    canvas.style.width  = (68 * 5) + 'px';
+    canvas.style.height = (24 * 5) + 'px';
+    canvas.style.display = 'block';
+    canvas.style.borderRadius = '2px';
+    var wrap = document.getElementById('lblCanvasWrap');
+    if (wrap) { wrap.innerHTML = ''; wrap.appendChild(canvas); }
+    document.getElementById('lblDownload').onclick = function(){
+      var a = document.createElement('a');
+      a.download = 'label-' + item.id + '.png';
+      a.href = canvas.toDataURL('image/png');
+      a.click();
+    };
+  });
+}
+
+/* ── 批次列印 ── */
+function printBatchLabels() {
+  var selectedItems = dataCache.items.filter(function(i){ return batchSelected.has(i.id); });
+  if (!selectedItems.length) return;
+  var dataUrls = new Array(selectedItems.length);
+  var done = 0;
+  var btn = document.getElementById('batchPrint');
+  if (btn) { btn.disabled = true; btn.textContent = '生成中 0/' + selectedItems.length; }
+  selectedItems.forEach(function(item, i) {
+    drawLabelCanvas(item, function(canvas) {
+      dataUrls[i] = canvas.toDataURL('image/png');
+      done++;
+      if (btn) btn.textContent = '生成中 ' + done + '/' + selectedItems.length;
+      if (done === selectedItems.length) {
+        openPrintWindow(selectedItems, dataUrls);
+        if (btn) { btn.disabled = false; btn.textContent = '🖨 列印 ' + selectedItems.length + ' 張'; }
+      }
+    });
+  });
+}
+
+function openPrintWindow(items, dataUrls) {
+  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8">'
+    + '<style>'
+    + '@page{size:68mm 24mm;margin:0;}'
+    + 'html,body{margin:0;padding:0;background:#fff;}'
+    + '.lbl{width:68mm;height:24mm;page-break-after:always;overflow:hidden;display:block;}'
+    + '.lbl:last-child{page-break-after:avoid;}'
+    + 'img{width:68mm;height:24mm;display:block;border:none;}'
+    + '</style></head><body>';
+  dataUrls.forEach(function(dataUrl) {
+    html += '<div class="lbl"><img src="' + dataUrl + '"></div>';
+  });
+  html += '<script>window.onload=function(){setTimeout(function(){window.print();},300);}<\/script>';
+  html += '</body></html>';
+  var win = window.open('', '_blank', 'width=420,height=320');
+  if (!win) { alert('請允許瀏覽器彈出視窗，再試一次'); return; }
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+}
+
+function wrapText(ctx, text, maxWidth) {
+  if (!text) return [''];
+  var words = text.split('');
+  var lines = [];
+  var cur   = '';
+  words.forEach(function(ch){
+    var test = cur + ch;
+    if (ctx.measureText(test).width > maxWidth && cur.length > 0) {
+      lines.push(cur);
+      cur = ch;
+    } else {
+      cur = test;
+    }
+  });
+  if (cur) lines.push(cur);
+  return lines;
+}
+
+function confirmDelete(id){
+  var item=dataCache.items.find(function(i){return i.id===id;});
+  if(!item)return;
+  var box=document.createElement('div');
+  box.className='del-confirm';
+  box.innerHTML='<div class="del-box"><div class="del-title">確認刪除？</div><div class="del-sub">【'+escHtml(item.id)+'】<br>'+escHtml(item.name)+'<br><br>此操作無法還原。</div><div class="del-btns"><button class="del-cancel" id="dCancel">取消</button><button class="del-ok" id="dOk">確認刪除</button></div></div>';
+  document.body.appendChild(box);
+  document.getElementById('dCancel').onclick=function(){box.remove();};
+  document.getElementById('dOk').onclick=function(){
+    box.remove();
+    if (DEMO_MODE || !WEBAPP_URL) {
+      dataCache.items=dataCache.items.filter(function(i){return i.id!==id;});
+      closeDetail();
+      renderBrowse('',true);
+      return;
+    }
+    showSaving('刪除中⋯');
+    apiPost({action:'delete',id:id},function(err){
+      hideSaving();
+      if(err){alert('刪除失敗：'+err);return;}
+      dataCache.items=dataCache.items.filter(function(i){return i.id!==id;});
+      closeDetail();
+      renderBrowse('',true);
+    });
+  };
+}
+
+/* ========== FILING MODE ========== */
+
+function initFileMode(){
+  document.getElementById('fileMode').innerHTML='<div class="sbar" id="fileSbar"></div><div class="cont" id="fileCont"></div>';
+  renderFile();
+}
+
+function renderFile(){
+  updateSbar();
+  var el=document.getElementById('fileCont');if(!el)return;
+  if(FS.step===1)     el.innerHTML=fStep1();
+  else if(FS.step===2)el.innerHTML=fStep2();
+  else if(FS.step===3)el.innerHTML=fStep3();
+  else if(FS.step===4)el.innerHTML=fStep4();
+  else if(FS.step===5)el.innerHTML=fStep5();
+  else                el.innerHTML=fDone();
+  bindFileClicks();
+}
+
+function updateSbar(){
+  var el=document.getElementById('fileSbar');if(!el)return;
+  var lbls=['選擇分類','基本資料','上傳圖片','AI辨識','確認儲存'];
+  el.innerHTML=lbls.map(function(l,i){var n=i+1,dc=n<FS.step?'done':n===FS.step?'cur':'';return '<div class="si"><div class="sn '+dc+'">'+(n<FS.step?'✓':n)+'</div><div class="sl '+dc+'">'+l+'</div></div>'+(i<4?'<div class="sline"></div>':'');}).join('');
+}
+
+function fStep1(){
+  return '<div style="margin-bottom:14px"><div style="font-family:Noto Serif TC,serif;font-size:15px;font-weight:300;letter-spacing:2px;margin-bottom:4px">選擇品項分類</div><div style="font-size:12px;color:var(--ink3)">請先選擇本次建檔的文物類別</div></div>'
+    +'<div class="catgrid">'+Object.keys(CATS).map(function(k){return '<div class="catbtn'+(FS.cat===k?' sel':'')+'" id="fcat_'+k+'"><div style="font-size:26px;margin-bottom:5px">'+CATS[k].e+'</div><div style="font-size:14px;font-weight:500;letter-spacing:1px;color:var(--accent)">'+k+'</div><div style="font-size:11px;color:var(--ink3)">'+CATS[k].n+'</div></div>';}).join('')+'</div>'
+    +'<div class="abar"><button class="bp" id="fNext1"'+(FS.cat?'':' disabled')+'>下一步</button></div>';
+}
+
+function fpHtml(){
+  var left='';
+  for(var g=5;g>=1;g--){
+    var cells=[{p:'C'},{p:'A'},{p:'D'},{p:'B'}];
+    var grid='<div class="fp-2x2">'+cells.map(function(c){var code='L-0'+g+'-'+c.p,sel=FS.selCab===code;return '<div class="cab-cell'+(sel?' sel':'')+'" data-cab="'+code+'">'+c.p+'</div>';}).join('')+'</div>';
+    left+='<div class="fp-group"><div class="fp-group-label">L-0'+g+'</div>'+grid+'</div>';
+  }
+  var right='';for(var r=5;r>=1;r--){var code='R-0'+r,sel=FS.selCab===code;right+='<div class="rack-cell'+(sel?' sel':'')+'" data-cab="'+code+'">'+code+'</div>';}
+  return '<div class="fp-outer"><div class="fp-orient"><span class="fp-orient-label">左側（L）</span><span class="fp-orient-label">右側（R）</span></div><div class="fp-room"><div class="fp-left">'+left+'</div><div class="fp-aisle"><div class="fp-aisle-label">走道</div></div><div class="fp-right">'+right+'</div></div><div class="fp-door">▲ 門口</div></div>';
+}
+
+function layerHtml(){
+  if(!FS.selCab)return '';
+  return '<div class="lpanel"><div class="llbl">'+FS.selCab+'</div><div class="lbtns">'+[4,3,2,1].map(function(n){return '<button class="lbtn'+(FS.selLayer===n?' sel':'')+'" data-layer="'+n+'">第'+n+'層</button>';}).join('')+'</div><div class="lhint">1底　4頂</div></div>';
+}
+
+function posResultHtml(){
+  var p=FS.loc.split('-'),desc='';
+  if(FS.loc.startsWith('L'))desc='左側第'+parseInt(p[1])+'組・'+(CAB_NAMES[p[2]]||p[2])+'・第'+p[3]+'層';
+  else desc='右側第'+parseInt(p[1])+'架・第'+p[2]+'層';
+  return '<div class="presult"><div><div style="font-size:9px;letter-spacing:1px;color:var(--ink3);margin-bottom:2px">已選位置</div><div class="pcode">'+FS.loc+'</div><div class="pdesc">'+desc+'</div></div><span class="pclr" id="fClearPos">重新選擇</span></div>';
+}
+
+function fStep2(){
+  var condOpts=COND_OPTS[FS.cat]||COND_OPTS.CQ;
+  var locPart=FS.loc?posResultHtml():fpHtml()+layerHtml()+'<div style="font-size:11px;color:var(--ink3);text-align:center;margin-top:4px">'+(FS.selCab?'↑ 請再選層號':'↑ 點選格位後再選層號')+'</div>';
+  return '<div style="margin-bottom:14px"><div style="font-family:Noto Serif TC,serif;font-size:15px;font-weight:300;letter-spacing:2px;margin-bottom:4px">填寫基本資料</div><div style="font-size:12px;color:var(--ink3)">分類：'+FS.cat+' '+CATS[FS.cat].n+'</div></div>'
+    +'<div class="fg"><div class="fl">存放位置 <span class="req">＊</span></div>'+locPart+'</div>'
+    +'<div class="fg"><div class="fl">品項名稱 <span class="req">＊</span></div><input id="fn" class="ffi" placeholder="如：青花山水紋梅瓶" value="'+escHtml(FS.name)+'"></div>'
+    +'<div class="fr"><div class="fg"><div class="fl">尺寸</div><input id="fsz" class="ffi" placeholder="口徑/高（cm）" value="'+escHtml(FS.size)+'"></div>'
+    +'<div class="fg"><div class="fl">品像</div><select id="fcd" class="ffi"><option value="">請選擇</option>'+condOpts.map(function(o){return '<option'+(FS.cond===o?' selected':'')+'>'+o+'</option>';}).join('')+'</select></div></div>'
+    +'<div class="abar"><button class="bs" id="fBack2">上一步</button><button class="bp" id="fNext2"'+(FS.loc?'':' disabled')+'>下一步</button></div>';
+}
+
+function fStep3(){
+  var cnt = FS.photoFiles ? FS.photoFiles.length : 0;
+
+  // 縮圖列（已選照片）
+  var thumbsHtml = '';
+  if (cnt > 0) {
+    thumbsHtml = '<div id="fPhotoThumbs" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">';
+    FS.photoFiles.forEach(function(f, i){
+      var url = FS.photoPreviewUrls && FS.photoPreviewUrls[i] ? FS.photoPreviewUrls[i] : '';
+      thumbsHtml += '<div style="position:relative;flex-shrink:0">'
+        + '<div style="width:64px;height:64px;border-radius:4px;overflow:hidden;background:var(--paper3);border:1px solid var(--border);display:flex;align-items:center;justify-content:center">'
+        + (url ? '<img src="'+url+'" style="width:100%;height:100%;object-fit:cover">' : '<span style="font-size:22px">📷</span>')
+        + '</div>'
+        + '<button data-rmidx="'+i+'" style="position:absolute;top:-5px;right:-5px;width:17px;height:17px;border-radius:50%;background:var(--accent);color:#fff;font-size:9px;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1">✕</button>'
+        + '</div>';
+    });
+    // 繼續新增按鈕
+    thumbsHtml += '<div id="fAddMoreBtn" style="width:64px;height:64px;border-radius:4px;border:1.5px dashed var(--border);background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;color:var(--ink3);font-size:18px;transition:all .15s;flex-shrink:0">＋<span style="font-size:8px;letter-spacing:1px">新增</span></div>';
+    thumbsHtml += '</div>';
+  }
+
+  var dropZone = cnt === 0
+    ? '<div class="uzn drag-zone" id="fUploadZone"><div style="font-size:24px;margin-bottom:6px">📷</div><div style="font-size:13px;color:var(--ink2)">點擊選取圖片或拍照</div><div style="font-size:11px;color:var(--ink3);margin-top:4px">或將圖片拖曳至此・建議每件至少 3 張</div></div>'
+    : '<div class="uzn drag-zone" id="fUploadZone" style="padding:12px;border-style:dashed">'+thumbsHtml+'<div style="font-size:11px;color:var(--ink3);text-align:center">或將圖片拖曳至此新增</div></div>';
+
+  return '<div style="margin-bottom:14px"><div style="font-family:Noto Serif TC,serif;font-size:15px;font-weight:300;letter-spacing:2px;margin-bottom:4px">上傳圖片</div><div style="font-size:12px;color:var(--ink3)">建議：正面、側面、底款、細節特寫</div></div>'
+    + dropZone
+    +'<input type="file" id="fPhotoInput" accept="image/*" multiple style="display:none">'
+    +'<div style="font-size:11px;color:var(--ink3);margin-top:6px">'+(FS.aiLoad?'⏳ AI 辨識中，請繼續下一步…':FS.aiDone?'✦ AI 辨識完成，下一步可直接確認':'圖片將在建檔完成後上傳至 Drive')+'</div>'
+    +'<div class="abar"><button class="bs" id="fBack3">上一步</button><button class="bp" id="fNext3">下一步（'+(cnt>0?cnt+'張':'略過')+'）</button></div>';
+}
+
+function fStep4(){
+  if(FS.aiLoad)return '<div style="text-align:center;padding:40px"><div class="spinner"></div><div style="font-size:12px;color:var(--ink3);letter-spacing:2px">AI 辨識中⋯</div></div>';
+  var lbl=CAT_FIELD_LABELS[FS.cat]||CAT_FIELD_LABELS.CQ;
+  var ai=AI_MOCK[FS.cat]||AI_MOCK.CQ;
+  var aiSec=!FS.aiDone
+    ?'<div style="background:var(--paper2);border-radius:var(--r);padding:18px;text-align:center;margin-bottom:14px"><div style="font-size:24px;margin-bottom:8px">🤖</div><div style="font-size:13px;color:var(--ink2);line-height:1.8;margin-bottom:12px">AI 將辨識：'+lbl.f2+'、'+lbl.f3+'、'+lbl.f4+'、紋飾描述</div><button class="bai" id="fAiBtn">開始 AI 辨識</button></div>'
+    :'<div class="aibox"><div class="aihdr"><span>✦ AI 辨識建議</span><span style="font-size:11px;color:var(--ink3)">請人工校對</span></div><div class="aibody">'
+      +'<div class="fr" style="margin-bottom:12px"><div class="fg"><div class="fl">'+lbl.f2+' <span class="abadge">✦ AI</span></div><input id="aid" class="ffi aif" value="'+escHtml(FS.dynasty||ai.dynasty)+'"></div><div class="fg"><div class="fl">'+lbl.f3+' <span class="abadge">✦ AI</span></div><input id="aik" class="ffi aif" value="'+escHtml(FS.kiln||ai.kiln)+'"></div></div>'
+      +'<div class="fg" style="margin-bottom:12px"><div class="fl">'+lbl.f4+' <span class="abadge">✦ AI</span></div><input id="aic" class="ffi aif" value="'+escHtml(FS.craft||ai.craft)+'"></div>'
+      +'<div class="fg"><div class="fl">簡述 <span class="abadge">✦ AI</span></div><textarea id="aidc" class="ffi aif">'+escHtml(FS.desc||ai.desc)+'</textarea></div>'
+      +'</div></div><div style="font-size:11px;color:var(--ink3);margin-bottom:14px">🟢 綠色框為 AI 填入，可直接修改</div>';
+  return '<div style="margin-bottom:14px"><div style="font-family:Noto Serif TC,serif;font-size:15px;font-weight:300;letter-spacing:2px;margin-bottom:4px">AI 辨識</div></div>'
+    +aiSec+'<div class="fr"><div class="fg"><div class="fl">參考價</div><input id="fpr" class="ffi" placeholder="NT$ ..." value="'+escHtml(FS.price)+'"></div><div class="fg"><div class="fl">備註</div><input id="fnt" class="ffi" placeholder="補充說明" value="'+escHtml(FS.note)+'"></div></div>'
+    +'<div class="abar"><button class="bs" id="fBack4">上一步</button><button class="bp" id="fNext4">下一步（'+(FS.aiDone?'已辨識':'略過')+'）</button></div>';
+}
+
+function fStep5(){
+  var lbl=CAT_FIELD_LABELS[FS.cat]||CAT_FIELD_LABELS.CQ;
+  var ai=AI_MOCK[FS.cat]||AI_MOCK.CQ;
+  var condOpts=COND_OPTS[FS.cat]||COND_OPTS.CQ;
+  var target = DEMO_MODE ? '範例清單（離線）' : 'Google Sheets';
+  return '<div style="margin-bottom:14px"><div style="font-family:Noto Serif TC,serif;font-size:15px;font-weight:300;letter-spacing:2px;margin-bottom:4px">確認並儲存</div><div style="font-size:12px;color:var(--ink3)">可直接修改後再儲存</div></div>'
+    +'<div style="background:var(--paper2);border-radius:var(--r);padding:13px 15px;margin-bottom:14px">'
+    +'<div style="font-size:10px;letter-spacing:3px;color:var(--accent);margin-bottom:10px">即將建立・'+FS.cat+' '+CATS[FS.cat].n+'・'+FS.loc+'</div>'
+    +'<div class="fg"><div class="fl">品項名稱</div><input id="s5name" class="ffi" value="'+escHtml(FS.name)+'"></div>'
+    +'<div class="fr"><div class="fg"><div class="fl">'+lbl.f2+'</div><input id="s5dynasty" class="ffi" value="'+escHtml(FS.dynasty||ai.dynasty)+'"></div>'
+    +'<div class="fg"><div class="fl">'+lbl.f3+'</div><input id="s5kiln" class="ffi" value="'+escHtml(FS.kiln||ai.kiln)+'"></div></div>'
+    +'<div class="fr"><div class="fg"><div class="fl">'+lbl.f4+'</div><input id="s5craft" class="ffi" value="'+escHtml(FS.craft||ai.craft)+'"></div>'
+    +'<div class="fg"><div class="fl">尺寸</div><input id="s5size" class="ffi" value="'+escHtml(FS.size)+'"></div></div>'
+    +'<div class="fr"><div class="fg"><div class="fl">品像</div><select id="s5cond" class="ffi"><option value="">請選擇</option>'+condOpts.map(function(o){return '<option'+((FS.cond||condOpts[0])===o?' selected':'')+'>'+o+'</option>';}).join('')+'</select></div>'
+    +'<div class="fg"><div class="fl">參考價</div><input id="s5price" class="ffi" placeholder="NT$" value="'+escHtml(FS.price)+'"></div></div>'
+    +'<div class="fg"><div class="fl">簡述</div><textarea id="s5desc" class="ffi" rows="2">'+escHtml(FS.desc||ai.desc)+'</textarea></div>'
+    +'</div>'
+    +'<div style="font-size:12px;color:var(--ink3);line-height:1.9;margin-bottom:14px">儲存後將自動：<br>✦ 寫入 '+target+'<br>'+(DEMO_MODE?'':('✦ 在 Drive 建立圖片資料夾<br>'))+'✦ 加入瀏覽清單</div>'
+    +'<div class="abar"><button class="bs" id="fBack5">上一步</button><button class="bp" id="fSave">確認儲存</button></div>';
+}
+
+function fDone(){
+  var driveNote = (!DEMO_MODE && FS.newFolderUrl)
+    ? '<div style="margin-top:10px"><a class="drive-link" href="'+FS.newFolderUrl+'" target="_blank">📁 開啟 Drive 圖片資料夾</a></div>'
+    : '';
+  return '<div style="text-align:center;padding:36px 20px">'
+    +'<div style="font-size:40px;margin-bottom:12px">✅</div>'
+    +'<div style="font-family:Noto Serif TC,serif;font-size:19px;letter-spacing:4px;color:var(--accent);margin-bottom:6px">'+FS.newId+'</div>'
+    +'<div style="font-family:Noto Serif TC,serif;font-size:14px;margin-bottom:4px">'+escHtml(FS.name)+'</div>'
+    +'<div style="font-size:12px;color:var(--ink3)">位置：'+FS.loc+'<br>建檔完成，已加入典藏清單</div>'
+    + driveNote
+    +'<div style="display:flex;gap:10px;justify-content:center;margin-top:22px"><button class="bs" id="fViewBtn">查看品項</button><button class="bp" id="fResetBtn">繼續建檔</button></div></div>';
+}
+
+// 累加照片：選取時立即壓縮，同時存入預覽與上傳用陣列
+function addPhotos(files) {
+  if (!files || !files.length) return;
+  if (!FS.photoFiles)      FS.photoFiles      = [];
+  if (!FS.photoPreviewUrls)FS.photoPreviewUrls = [];
+  if (!FS.photoCompressed) FS.photoCompressed  = [];
+  var pending = files.length;
+  files.forEach(function(f){
+    FS.photoFiles.push(f);
+    var reader = new FileReader();
+    reader.onload = function(e){
+      var img = new Image();
+      img.onload = function(){
+        // 壓縮：長邊最大 1200px, JPEG 0.82
+        var MAX=1200, w=img.width, h=img.height;
+        if(w>MAX||h>MAX){if(w>h){h=Math.round(h*MAX/w);w=MAX;}else{w=Math.round(w*MAX/h);h=MAX;}}
+        var c=document.createElement('canvas'); c.width=w; c.height=h;
+        c.getContext('2d').drawImage(img,0,0,w,h);
+        var compressed = c.toDataURL('image/jpeg', 0.82);
+        FS.photoPreviewUrls.push(compressed);  // 預覽用
+        FS.photoCompressed.push(compressed);   // 上傳用（已壓縮）
+        pending--;
+        if(pending===0){ FS.photo=true; FS.aiDone=false; renderFile(); }
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(f);
+  });
+}
+
+function triggerAiRecognition() {
+  if (FS.aiLoad || FS.aiDone) return;
+  // 優先用已壓縮的版本，沒有就檢查原始 File
+  var base64 = null;
+  if (FS.photoCompressed && FS.photoCompressed.length) {
+    base64 = FS.photoCompressed[0].split(',')[1];
+    doRecognize(base64);
+  } else if (FS.photoFiles && FS.photoFiles.length) {
+    // fallback：即時壓縮
+    var reader = new FileReader();
+    reader.onload = function(e){
+      var img2 = new Image();
+      img2.onload = function(){
+        var MAX=1200, w=img2.width, h=img2.height;
+        if(w>MAX||h>MAX){if(w>h){h=Math.round(h*MAX/w);w=MAX;}else{w=Math.round(w*MAX/h);h=MAX;}}
+        var c=document.createElement('canvas'); c.width=w; c.height=h;
+        c.getContext('2d').drawImage(img2,0,0,w,h);
+        doRecognize(c.toDataURL('image/jpeg',0.85).split(',')[1]);
+      };
+      img2.src = e.target.result;
+    };
+    reader.readAsDataURL(FS.photoFiles[0]);
+  } else {
+    return; // 沒有照片
+  }
+
+  function doRecognize(b64) {
+    if (DEMO_MODE || !WEBAPP_URL) {
+      FS.aiLoad = true; renderFile();
+      setTimeout(function(){ FS.aiLoad=false; FS.aiDone=true; renderFile(); }, 1200);
+      return;
+    }
+    FS.aiLoad = true;
+    if (FS.step === 4) renderFile(); // 立即顯示 spinner
+    apiPost({action:'recognize', base64Data:b64, mimeType:'image/jpeg', cat:FS.cat}, function(err, data){
+      FS.aiLoad = false;
+      if (err) {
+        FS.aiDone = false;
+        alert('AI 辨識失敗：' + err);
+      } else {
+        FS.dynasty = data.dynasty || '';
+        FS.kiln    = data.kiln    || '';
+        FS.craft   = data.craft   || '';
+        FS.desc    = data.desc    || '';
+        FS.aiDone  = true;
+      }
+      if (FS.step === 4) renderFile();
+    });
+  }
+}
+
+function doSave(cb) {
+  var ai=AI_MOCK[FS.cat]||AI_MOCK.CQ;
+  var newItem = {
+    loc:FS.loc, name:FS.name||'（未命名）',
+    dynasty:FS.dynasty||ai.dynasty, kiln:FS.kiln||ai.kiln,
+    craft:FS.craft||ai.craft, size:FS.size,
+    cond:FS.cond||(COND_OPTS[FS.cat]||COND_OPTS.CQ)[0],
+    desc:FS.desc||ai.desc, price:FS.price, note:FS.note,
+  };
+
+  if (DEMO_MODE || !WEBAPP_URL) {
+    // 離線模式：本地產生 ID
+    var d=new Date(),roc=d.getFullYear()-1911,mm=('0'+(d.getMonth()+1)).slice(-2),dd2=('0'+d.getDate()).slice(-2);
+    var prefix=FS.cat+'-'+roc+mm+dd2+'-';
+    var cnt=dataCache.items.filter(function(i){return i.id.indexOf(prefix)===0;}).length;
+    FS.newId = prefix+('00'+(cnt+1)).slice(-3);
+    FS.newFolderUrl = '';
+    var localItem = Object.assign({}, newItem, {
+      id:FS.newId, cat:FS.cat,
+      color:CAT_COLORS[FS.cat], emoji:CATS[FS.cat].e,
+      images:[CATS[FS.cat].e,CATS[FS.cat].e,CATS[FS.cat].e],
+      folderId:'', folderUrl:'', isNew:true,
+    });
+    dataCache.items.push(localItem);
+    cb(null);
+    return;
+  }
+
+  showSaving('建檔中⋯');
+  apiPost({action:'create', cat:FS.cat, item:newItem}, function(err, data){
+    if (err) { hideSaving(); cb(err); return; }
+    FS.newId       = data.id;
+    FS.newFolderId = data.folderId || '';
+    FS.newFolderUrl= data.folderUrl || '';
+    var localItem = Object.assign({}, newItem, {
+      id:data.id, cat:FS.cat,
+      color:CAT_COLORS[FS.cat], emoji:CATS[FS.cat].e,
+      images:[CATS[FS.cat].e],
+      folderId:data.folderId||'', folderUrl:data.folderUrl||'', isNew:true,
+    });
+    dataCache.items.push(localItem);
+
+    // 並行上傳所有圖片（已在選照片時壓縮完畢）
+    var compressed = FS.photoCompressed || [];
+    if (!compressed.length) { hideSaving(); cb(null); return; }
+
+    var total    = compressed.length;
+    var done     = 0;
+    var ts       = new Date().toISOString().replace(/[-:T]/g,'').slice(0,14);
+    showSaving('上傳圖片（0/'+total+'）⋯');
+
+    compressed.forEach(function(dataUrl, i){
+      var base64   = dataUrl.split(',')[1];
+      var fileName = data.id+'_'+ts+'_'+('0'+(i+1)).slice(-2)+'.jpg';
+      apiPost({action:'uploadImage',itemId:data.id,fileName:fileName,base64Data:base64,mimeType:'image/jpeg'}, function(e2, imgData){
+        done++;
+        // 第一張回來就更新卡片封面
+        if (i===0 && imgData && imgData.thumb) {
+          var newIdx = dataCache.items.findIndex(function(it){return it.id===data.id;});
+          if (newIdx >= 0) dataCache.items[newIdx].coverThumb = imgData.thumb;
+        }
+        showSaving('上傳圖片（'+done+'/'+total+'）⋯');
+        if (done === total) { hideSaving(); cb(null); }
+      });
+    });
+  });
+}
+
+function bindFileClicks(){
+  function on(id,fn){var el=document.getElementById(id);if(el)el.addEventListener('click',fn);}
+  Object.keys(CATS).forEach(function(k){on('fcat_'+k,function(){FS.cat=k;renderFile();});});
+  on('fNext1',function(){if(FS.cat)fGo(2);});
+  on('fBack2',function(){fGo(1);});
+  on('fClearPos',function(){FS.selCab=null;FS.selLayer=null;FS.loc='';renderFile();});
+  on('fNext2',function(){
+    var nm=document.getElementById('fn');if(!FS.loc)return;
+    if(nm&&!nm.value.trim()){nm.style.borderColor='var(--accent)';nm.focus();return;}
+    FS.name=(nm?nm.value.trim():'');
+    FS.size=(document.getElementById('fsz')?document.getElementById('fsz').value:'');
+    FS.cond=(document.getElementById('fcd')?document.getElementById('fcd').value:'');
+    fGo(3);
+  });
+  on('fBack3',function(){fGo(2);});
+  // 建檔第3步：點擊上傳區（空白時）或「新增」按鈕
+  on('fUploadZone', function(e){
+    // 若點到刪除按鈕，處理刪除
+    var rmBtn = e.target.closest ? e.target.closest('[data-rmidx]') : null;
+    if (rmBtn) {
+      var idx = parseInt(rmBtn.getAttribute('data-rmidx'));
+      FS.photoFiles.splice(idx, 1);
+      if (FS.photoPreviewUrls) FS.photoPreviewUrls.splice(idx, 1);
+      FS.photo = FS.photoFiles.length > 0;
+      FS.aiDone = false;
+      renderFile();
+      return;
+    }
+    // 若點到「繼續新增」按鈕
+    var addBtn = e.target.closest ? e.target.closest('#fAddMoreBtn') : null;
+    if (addBtn) { var fi2=document.getElementById('fPhotoInput'); if(fi2)fi2.click(); return; }
+    // 空白區點擊 → 選檔
+    if (!FS.photoFiles || FS.photoFiles.length === 0) {
+      var fi=document.getElementById('fPhotoInput'); if(fi)fi.click();
+    }
+  });
+  // 拖曳上傳
+  (function(){
+    var zone = document.getElementById('fUploadZone');
+    if (zone) {
+      zone.addEventListener('dragover', function(e){ e.preventDefault(); e.stopPropagation(); zone.classList.add('drag-over-file'); });
+      zone.addEventListener('dragleave', function(e){ if(!zone.contains(e.relatedTarget)) zone.classList.remove('drag-over-file'); });
+      zone.addEventListener('drop', function(e){
+        e.preventDefault(); e.stopPropagation(); zone.classList.remove('drag-over-file');
+        var files = Array.prototype.slice.call(e.dataTransfer.files).filter(function(f){ return f.type.indexOf('image/')===0; });
+        if (!files.length) return;
+        addPhotos(files);
+      });
+    }
+  })();
+  // 檔案 input 變更 → 累加
+  (function(){
+    var fi=document.getElementById('fPhotoInput');
+    if(fi){fi.onchange=function(){
+      var files=Array.prototype.slice.call(this.files);
+      addPhotos(files);
+      this.value=''; // 清空 input，讓同樣的檔案下次還能觸發
+    };}
+  })();
+  on('fNext3',function(){fGo(4);});
+  on('fBack4',function(){fGo(3);});
+  on('fAiBtn',function(){ triggerAiRecognition(); }); // 手動重試按鈕
+  on('fNext4',function(){
+    if(document.getElementById('aid'))FS.dynasty=document.getElementById('aid').value;
+    if(document.getElementById('aik'))FS.kiln=document.getElementById('aik').value;
+    if(document.getElementById('aic'))FS.craft=document.getElementById('aic').value;
+    if(document.getElementById('aidc'))FS.desc=document.getElementById('aidc').value;
+    if(document.getElementById('fpr'))FS.price=document.getElementById('fpr').value;
+    if(document.getElementById('fnt'))FS.note=document.getElementById('fnt').value;
+    fGo(5);
+  });
+  on('fBack5',function(){fGo(4);});
+  on('fSave',function(){
+    // 讀取 step5 可編輯欄位
+    var g=function(id){var el=document.getElementById(id);return el?el.value.trim():null;};
+    if(g('s5name')!==null)   FS.name    = g('s5name');
+    if(g('s5dynasty')!==null)FS.dynasty = g('s5dynasty');
+    if(g('s5kiln')!==null)   FS.kiln    = g('s5kiln');
+    if(g('s5craft')!==null)  FS.craft   = g('s5craft');
+    if(g('s5size')!==null)   FS.size    = g('s5size');
+    if(g('s5cond')!==null)   FS.cond    = g('s5cond');
+    if(g('s5price')!==null)  FS.price   = g('s5price');
+    if(g('s5desc')!==null)   FS.desc    = g('s5desc');
+    var btn=document.getElementById('fSave');if(btn)btn.disabled=true;
+    doSave(function(err){
+      if(err){alert('建檔失敗：'+err);if(btn)btn.disabled=false;return;}
+      fGo(6);
+      // 2 秒後自動跳到詳細頁
+      setTimeout(function(){
+        if(FS.newId){ currentCat=FS.cat; switchMode('browse'); setTimeout(function(){openDetail(FS.newId);},100); }
+      }, 2000);
+    });
+  });
+  on('fViewBtn',function(){
+    currentCat=FS.cat;
+    switchMode('browse');
+    setTimeout(function(){openDetail(FS.newId);},100);
+  });
+  on('fResetBtn',function(){
+    FS={step:1,cat:'',photo:false,photoFiles:[],photoPreviewUrls:[],photoCompressed:[],aiDone:false,aiLoad:false,selCab:null,selLayer:null,loc:'',name:'',size:'',cond:'',dynasty:'',kiln:'',craft:'',desc:'',price:'',note:'',newId:'',newFolderId:'',newFolderUrl:''};
+    renderFile();
+  });
+  document.querySelectorAll('[data-cab]').forEach(function(el){
+    el.addEventListener('click',function(){FS.selCab=this.getAttribute('data-cab');FS.selLayer=null;FS.loc='';renderFile();});
+  });
+  document.querySelectorAll('[data-layer]').forEach(function(el){
+    el.addEventListener('click',function(){FS.selLayer=parseInt(this.getAttribute('data-layer'));FS.loc=FS.selCab+'-'+FS.selLayer;renderFile();});
+  });
+}
+
+function fGo(n){FS.step=n;renderFile();}
+
+/* ========== QUICK FILE (手機快拍建檔) ========== */
+
+var QFS = {
+  photos:[], mainIdx:0,
+  cat:'', loc:'', name:'', cond:'', dynasty:'', kiln:'', craft:'', desc:'', price:'', note:'',
+  aiDone:false, aiLoad:false, locOpen:false, selCab:null, selLayer:null,
+};
+
+// ── 開啟相機 ──
+document.getElementById('camFab').onclick = function(){
+  document.getElementById('quickCamInput').click();
+};
+
+document.getElementById('quickCamInput').onchange = function(){
+  var files = Array.prototype.slice.call(this.files);
+  if (!files.length) return;
+  this.value = '';
+  // 壓縮並加入照片
+  var pending = files.length;
+  files.forEach(function(file){
+    var reader = new FileReader();
+    reader.onload = function(e){
+      var img = new Image();
+      img.onload = function(){
+        var MAX=1600, w=img.width, h=img.height;
+        if(w>MAX||h>MAX){if(w>h){h=Math.round(h*MAX/w);w=MAX;}else{w=Math.round(w*MAX/h);h=MAX;}}
+        var c=document.createElement('canvas');c.width=w;c.height=h;
+        c.getContext('2d').drawImage(img,0,0,w,h);
+        var dataUrl=c.toDataURL('image/jpeg',0.85);
+        QFS.photos.push({dataUrl:dataUrl, fileName:file.name});
+        QFS.mainIdx = QFS.photos.length - 1;
+        pending--;
+        if(pending===0) openQfSheet();
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+};
+
+function openQfSheet(){
+  document.getElementById('qfBackdrop').classList.add('open');
+  document.getElementById('qfSheet').classList.add('open');
+  renderQf();
+}
+
+function closeQfSheet(){
+  document.getElementById('qfBackdrop').classList.remove('open');
+  document.getElementById('qfSheet').classList.remove('open');
+  QFS={photos:[],mainIdx:0,cat:'',loc:'',name:'',cond:'',dynasty:'',kiln:'',craft:'',desc:'',price:'',note:'',aiDone:false,aiLoad:false,locOpen:false,selCab:null,selLayer:null};
+}
+
+document.getElementById('qfBackdrop').onclick = closeQfSheet;
+document.getElementById('qfClose').onclick    = closeQfSheet;
+document.getElementById('qfCancel').onclick   = closeQfSheet;
+
+// ── 渲染底部表單 ──
+function renderQf(){
+  var body = document.getElementById('qfBody');
+  if (!body) return;
+
+  // 照片區
+  var photoHtml = '<div class="qf-photos" id="qfMainPhoto">';
+  if (QFS.photos.length > 0) {
+    photoHtml += '<img src="'+QFS.photos[QFS.mainIdx].dataUrl+'" alt="">';
+    if (QFS.photos.length > 1) {
+      photoHtml += '<button class="qf-photo-nav prev" id="qfPrev">‹</button>'
+                 + '<button class="qf-photo-nav next" id="qfNext">›</button>';
+    }
+    photoHtml += '<span class="qf-photo-counter">'+(QFS.mainIdx+1)+' / '+QFS.photos.length+'</span>';
+  } else {
+    photoHtml += '<span class="qf-ph-empty">📷</span>';
+  }
+  photoHtml += '</div>';
+
+  // 縮圖列
+  var thumbHtml = '<div class="qf-thumbs">';
+  QFS.photos.forEach(function(p,i){
+    thumbHtml += '<div class="qf-thumb'+(i===QFS.mainIdx?' active':'')+'" data-qfi="'+i+'"><img src="'+p.dataUrl+'"></div>';
+  });
+  thumbHtml += '<button class="qf-thumb-add" id="qfAddPhoto"><span>＋</span><span>再拍</span></button></div>';
+
+  // 表單
+  var condOpts = COND_OPTS[QFS.cat] || COND_OPTS.CQ;
+  var lbl = CAT_FIELD_LABELS[QFS.cat] || CAT_FIELD_LABELS.CQ;
+
+  var catsHtml = '<div class="qf-sec first">選擇分類</div><div class="qf-cats">'
+    + Object.keys(CATS).map(function(k){
+        return '<div class="qf-cat'+(QFS.cat===k?' sel':'')+'" data-qfcat="'+k+'">'
+          +'<div class="qf-cat-e">'+CATS[k].e+'</div>'
+          +'<div class="qf-cat-k">'+k+'</div>'
+          +'<div class="qf-cat-n">'+CATS[k].n+'</div></div>';
+      }).join('') + '</div>';
+
+  // 位置
+  var locHtml = '<div class="qf-sec">存放位置</div>'
+    + '<div class="qf-fg"><div class="qf-loc-row">'
+    + '<input class="ffi" id="qfLocInput" placeholder="如 L-01-A-2 或 R-03-1" value="'+escHtml(QFS.loc)+'">'
+    + '<button class="qf-loc-btn'+(QFS.locOpen?' sel':'')+'" id="qfLocToggle">'+(QFS.locOpen?'收起':'平面圖')+'</button>'
+    + '</div></div>';
+
+  if (QFS.locOpen) {
+    locHtml += '<div class="qf-locpicker" id="qfLocPicker">' + fpHtml() + layerHtml() + '</div>';
+    if (QFS.loc) locHtml = '<div class="qf-sec">存放位置</div>' + posResultHtml()
+      + '<div style="text-align:right;margin-bottom:8px"><span style="font-size:11px;color:var(--ink3);cursor:pointer;text-decoration:underline" id="qfClearPos">重新選擇</span></div>';
+  }
+
+  // 基本資料
+  var basicHtml = '<div class="qf-sec">基本資料</div>'
+    + '<div class="qf-fg"><div class="qf-lbl">品項名稱 <span class="req">＊</span></div><input class="ffi" id="qfName" placeholder="請填入品項名稱" value="'+escHtml(QFS.name)+'"></div>'
+    + '<div class="qf-row">'
+    + '<div class="qf-fg"><div class="qf-lbl">品像</div><select class="ffi" id="qfCond"><option value="">請選擇</option>'+condOpts.map(function(o){return '<option'+(QFS.cond===o?' selected':'')+'>'+o+'</option>';}).join('')+'</select></div>'
+    + '<div class="qf-fg"><div class="qf-lbl">尺寸</div><input class="ffi" id="qfSize" placeholder="口徑/高 (cm)" value="'+escHtml(QFS.size||'')+'"></div>'
+    + '</div>';
+
+  // AI 辨識
+  var aiHtml = '<div class="qf-sec">AI 辨識</div>';
+  if (QFS.aiLoad) {
+    aiHtml += '<div style="text-align:center;padding:20px"><div class="spinner"></div><div style="font-size:11px;color:var(--ink3);letter-spacing:2px;margin-top:6px">AI 辨識中⋯</div></div>';
+  } else if (!QFS.aiDone) {
+    var photoReady = QFS.photos.length > 0;
+    aiHtml += '<div class="qf-ai-bar" id="qfAiBtn">'
+      + '<div><div class="qf-ai-lbl">✦ 開始 AI 辨識</div>'
+      + '<div class="qf-ai-hint">'+(photoReady?'辨識'+lbl.f2+'、'+lbl.f3+'、'+lbl.f4+'、紋飾描述':'請先選擇分類')+'</div></div>'
+      + '<span style="font-size:20px;opacity:.4">›</span></div>';
+  } else {
+    var aiMock = AI_MOCK[QFS.cat] || AI_MOCK.CQ;
+    aiHtml += '<div class="qf-ai-fields"><div class="qf-form-inner">'
+      + '<div class="qf-row" style="margin-bottom:10px">'
+      + '<div class="qf-fg"><div class="qf-lbl">'+lbl.f2+' <span style="font-size:9px;color:var(--jade);background:rgba(61,122,94,0.1);padding:1px 5px;border-radius:8px">✦ AI</span></div><input class="ffi qf-aif" id="qfDynasty" value="'+escHtml(QFS.dynasty||aiMock.dynasty)+'"></div>'
+      + '<div class="qf-fg"><div class="qf-lbl">'+lbl.f3+' <span style="font-size:9px;color:var(--jade);background:rgba(61,122,94,0.1);padding:1px 5px;border-radius:8px">✦ AI</span></div><input class="ffi qf-aif" id="qfKiln" value="'+escHtml(QFS.kiln||aiMock.kiln)+'"></div>'
+      + '</div>'
+      + '<div class="qf-fg" style="margin-bottom:10px"><div class="qf-lbl">'+lbl.f4+' <span style="font-size:9px;color:var(--jade);background:rgba(61,122,94,0.1);padding:1px 5px;border-radius:8px">✦ AI</span></div><input class="ffi qf-aif" id="qfCraft" value="'+escHtml(QFS.craft||aiMock.craft)+'"></div>'
+      + '<div class="qf-fg"><div class="qf-lbl">簡述 <span style="font-size:9px;color:var(--jade);background:rgba(61,122,94,0.1);padding:1px 5px;border-radius:8px">✦ AI</span></div><textarea class="ffi qf-aif" id="qfDesc" style="min-height:80px">'+escHtml(QFS.desc||aiMock.desc)+'</textarea></div>'
+      + '</div></div>';
+  }
+
+  // 參考價 / 備註
+  var extraHtml = '<div class="qf-sec">其他資訊</div>'
+    + '<div class="qf-row">'
+    + '<div class="qf-fg"><div class="qf-lbl">參考價</div><input class="ffi" id="qfPrice" placeholder="NT$ ..." value="'+escHtml(QFS.price)+'"></div>'
+    + '<div class="qf-fg"><div class="qf-lbl">備註</div><input class="ffi" id="qfNote" placeholder="補充說明" value="'+escHtml(QFS.note)+'"></div>'
+    + '</div><div style="height:8px"></div>';
+
+  body.innerHTML = photoHtml + thumbHtml + '<div class="qf-form">' + catsHtml + locHtml + basicHtml + aiHtml + extraHtml + '</div>';
+
+  // 更新儲存按鈕狀態
+  var saveBtn = document.getElementById('qfSaveBtn');
+  if (saveBtn) saveBtn.disabled = !QFS.cat || !QFS.loc;
+
+  bindQf();
+}
+
+function bindQf(){
+  function on(id,fn){var el=document.getElementById(id);if(el)el.addEventListener('click',fn);}
+
+  // 縮圖切換
+  document.querySelectorAll('.qf-thumb[data-qfi]').forEach(function(el){
+    el.onclick=function(){QFS.mainIdx=parseInt(this.getAttribute('data-qfi'));renderQf();};
+  });
+
+  // 大圖左右
+  on('qfPrev',function(e){e.stopPropagation();QFS.mainIdx=(QFS.mainIdx-1+QFS.photos.length)%QFS.photos.length;renderQf();});
+  on('qfNext',function(e){e.stopPropagation();QFS.mainIdx=(QFS.mainIdx+1)%QFS.photos.length;renderQf();});
+
+  // 再拍 / 補圖
+  on('qfAddPhoto',function(){
+    var inp=document.getElementById('quickCamInput');
+    if(inp){inp.removeAttribute('capture');inp.click();inp.setAttribute('capture','environment');}
+  });
+
+  // 分類選擇
+  document.querySelectorAll('[data-qfcat]').forEach(function(el){
+    el.onclick=function(){QFS.cat=this.getAttribute('data-qfcat');QFS.aiDone=false;renderQf();};
+  });
+
+  // 位置：平面圖切換
+  on('qfLocToggle',function(){QFS.locOpen=!QFS.locOpen;_qfSaveFields();renderQf();});
+  on('qfClearPos',function(){QFS.loc='';QFS.selCab=null;QFS.selLayer=null;_qfSaveFields();renderQf();});
+
+  // 平面圖點選（reuse existing cab/layer cells）
+  document.querySelectorAll('[data-cab]').forEach(function(el){
+    el.onclick=function(){QFS.selCab=this.getAttribute('data-cab');QFS.selLayer=null;QFS.loc='';_qfSaveFields();renderQf();};
+  });
+  document.querySelectorAll('[data-layer]').forEach(function(el){
+    el.onclick=function(){QFS.selLayer=parseInt(this.getAttribute('data-layer'));QFS.loc=QFS.selCab+'-'+QFS.selLayer;_qfSaveFields();renderQf();};
+  });
+
+  // AI 辨識
+  on('qfAiBtn',function(){
+    if(!QFS.cat){alert('請先選擇分類');return;}
+    if(!QFS.photos.length){alert('請先拍攝至少一張照片');return;}
+    _qfSaveFields();
+    QFS.aiLoad=true;renderQf();
+
+    if(DEMO_MODE||!WEBAPP_URL){
+      setTimeout(function(){QFS.aiLoad=false;QFS.aiDone=true;renderQf();},1800);
+      return;
+    }
+
+    // 用第一張照片（已壓縮 dataUrl）做辨識
+    var base64=QFS.photos[0].dataUrl.split(',')[1];
+    apiPost({action:'recognize',base64Data:base64,mimeType:'image/jpeg',cat:QFS.cat},function(err,data){
+      QFS.aiLoad=false;
+      if(err){alert('AI辨識失敗：'+err);QFS.aiDone=false;renderQf();return;}
+      QFS.dynasty=data.dynasty||'';QFS.kiln=data.kiln||'';QFS.craft=data.craft||'';QFS.desc=data.desc||'';
+      QFS.aiDone=true;renderQf();
+    });
+  });
+
+  // 位置輸入即時更新
+  var locInp=document.getElementById('qfLocInput');
+  if(locInp){locInp.addEventListener('input',function(){QFS.loc=this.value.trim();var s=document.getElementById('qfSaveBtn');if(s)s.disabled=!QFS.cat||!QFS.loc;});}
+
+  // 儲存
+  var saveBtn=document.getElementById('qfSaveBtn');
+  if(saveBtn){saveBtn.onclick=function(){_qfSaveFields();qfDoSave();};}
+}
+
+function _qfSaveFields(){
+  function v(id){var el=document.getElementById(id);return el?el.value:'';}
+  if(document.getElementById('qfLocInput'))QFS.loc=v('qfLocInput')||QFS.loc;
+  QFS.name    = v('qfName')    || QFS.name;
+  QFS.cond    = v('qfCond')    || QFS.cond;
+  QFS.size    = v('qfSize')    || QFS.size;
+  QFS.dynasty = v('qfDynasty') || QFS.dynasty;
+  QFS.kiln    = v('qfKiln')    || QFS.kiln;
+  QFS.craft   = v('qfCraft')   || QFS.craft;
+  QFS.desc    = v('qfDesc')    || QFS.desc;
+  QFS.price   = v('qfPrice')   || QFS.price;
+  QFS.note    = v('qfNote')    || QFS.note;
+}
+
+function qfDoSave(){
+  _qfSaveFields();
+  if (!QFS.cat) { alert('請選擇分類'); return; }
+  if (!QFS.loc) { alert('請填入存放位置'); return; }
+  if (!QFS.name.trim()) { alert('請填入品項名稱'); return; }
+
+  var saveBtn = document.getElementById('qfSaveBtn');
+  if(saveBtn){saveBtn.disabled=true;saveBtn.textContent='儲存中⋯';}
+
+  var ai = AI_MOCK[QFS.cat] || AI_MOCK.CQ;
+  var newItem = {
+    loc: QFS.loc, name: QFS.name,
+    dynasty: QFS.dynasty||ai.dynasty, kiln: QFS.kiln||ai.kiln,
+    craft: QFS.craft||ai.craft, size: QFS.size||'',
+    cond: QFS.cond||(COND_OPTS[QFS.cat]||COND_OPTS.CQ)[0],
+    desc: QFS.desc||ai.desc, price: QFS.price, note: QFS.note,
+  };
+
+  function afterCreate(itemId, folderId) {
+    var photos = QFS.photos.slice();
+    if (!photos.length) { _qfFinish(itemId); return; }
+    showSaving('上傳圖片（0/'+photos.length+'）⋯');
+    var uploaded=0;
+    function nextPhoto(){
+      if(!photos.length){hideSaving();_qfFinish(itemId);return;}
+      var p=photos.shift();
+      var base64=p.dataUrl.split(',')[1];
+      var ts=new Date().toISOString().replace(/[-:T]/g,'').slice(0,14);
+      var fn=itemId+'_'+ts+'_'+('0'+(uploaded+1)).slice(-2)+'.jpg';
+      apiPost({action:'uploadImage',itemId:itemId,fileName:fn,base64Data:base64,mimeType:'image/jpeg'},function(err,data){
+        uploaded++;
+        if(!err&&data&&data.thumb&&uploaded===1){
+          var cIdx=dataCache.items.findIndex(function(i){return i.id===itemId;});
+          if(cIdx>=0)dataCache.items[cIdx].coverThumb=data.thumb;
+        }
+        showSaving('上傳圖片（'+uploaded+'/'+QFS.photos.length+'）⋯');
+        nextPhoto();
+      });
+    }
+    nextPhoto();
+  }
+
+  if(DEMO_MODE||!WEBAPP_URL){
+    var d=new Date(),roc=d.getFullYear()-1911,mm=('0'+(d.getMonth()+1)).slice(-2),dd2=('0'+d.getDate()).slice(-2);
+    var prefix=QFS.cat+'-'+roc+mm+dd2+'-';
+    var cnt=dataCache.items.filter(function(i){return i.id.indexOf(prefix)===0;}).length;
+    var newId=prefix+('00'+(cnt+1)).slice(-3);
+    var localItem=Object.assign({},newItem,{
+      id:newId,cat:QFS.cat,color:CAT_COLORS[QFS.cat],emoji:CATS[QFS.cat].e,
+      images:[CATS[QFS.cat].e],folderId:'',folderUrl:'',
+      coverThumb: QFS.photos.length?QFS.photos[0].dataUrl:'',isNew:true,
+    });
+    dataCache.items.push(localItem);
+    _qfFinish(newId);
+    return;
+  }
+
+  showSaving('建檔中⋯');
+  apiPost({action:'create',cat:QFS.cat,item:newItem},function(err,data){
+    hideSaving();
+    if(err){alert('建檔失敗：'+err);if(saveBtn){saveBtn.disabled=false;saveBtn.textContent='確認儲存';}return;}
+    var localItem=Object.assign({},newItem,{
+      id:data.id,cat:QFS.cat,color:CAT_COLORS[QFS.cat],emoji:CATS[QFS.cat].e,
+      images:[CATS[QFS.cat].e],folderId:data.folderId||'',folderUrl:data.folderUrl||'',
+      coverThumb:'',isNew:true,
+    });
+    dataCache.items.push(localItem);
+    afterCreate(data.id, data.folderId);
+  });
+}
+
+function _qfFinish(itemId){
+  hideSaving();
+  closeQfSheet();
+  currentCat = QFS.cat || currentCat;
+  renderBrowse('', true);
+  // 短暫延遲後開啟詳細頁
+  setTimeout(function(){
+    switchMode('browse');
+    openDetail(itemId);
+  }, 150);
+}
+
+/* ========== START ========== */
+init();
+</script>
+</body>
+</html>
