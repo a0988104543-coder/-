@@ -1160,48 +1160,75 @@ function drawLabelCanvas(item, cb) {
   ctx.fillText('位置：' + (item.loc || ''), 0, (2.3 * S));
   ctx.restore();
 
-  // 朝代（小斜體，允許折兩行）
+  // ── 中央文字區（加裁切，任何文字不超出邊界）──
   var cMidX = CTR_X + CTR_W / 2;
+  var maxW   = CTR_W - 2 * S;   // 可用寬度（留 1mm 邊）
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(CTR_X + S * 0.5, S * 0.5, CTR_W - S, H - S);
+  ctx.clip();
+
+  // 朝代：小斜體，自動縮小直到兩行能容納
   ctx.fillStyle = '#000000';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   var dynFs = 2.4 * S;
-  ctx.font = 'italic ' + dynFs + 'px "Noto Serif TC", serif';
   var dynasty = item.dynasty || '';
-  var dynEndY;  // 朝代文字底部 Y，供品名定位用
-  if (dynasty && ctx.measureText(dynasty).width > CTR_W - S) {
-    var dMid = Math.ceil(dynasty.length / 2);
-    ctx.fillText(dynasty.slice(0, dMid), cMidX, H * 0.14);
-    ctx.fillText(dynasty.slice(dMid),    cMidX, H * 0.30);
-    dynEndY = H * 0.30 + dynFs * 0.7;
-  } else {
-    ctx.fillText(dynasty, cMidX, H * 0.20);
-    dynEndY = H * 0.20 + dynFs * 0.7;
+  var dynEndY = S * 0.5;  // 預設頂部
+
+  if (dynasty) {
+    ctx.font = 'italic ' + dynFs + 'px "Noto Serif TC", serif';
+    if (ctx.measureText(dynasty).width <= maxW) {
+      // 單行
+      ctx.fillText(dynasty, cMidX, H * 0.20);
+      dynEndY = H * 0.20 + dynFs * 0.7;
+    } else {
+      // 折兩行：縮字直到每半行都能放進去
+      var dMid = Math.ceil(dynasty.length / 2);
+      var dp1 = dynasty.slice(0, dMid), dp2 = dynasty.slice(dMid);
+      while (dynFs > 1.5 * S &&
+             (ctx.measureText(dp1).width > maxW || ctx.measureText(dp2).width > maxW)) {
+        dynFs -= 0.1 * S;
+        ctx.font = 'italic ' + dynFs + 'px "Noto Serif TC", serif';
+      }
+      var dy1 = H * 0.14, dy2 = dy1 + dynFs * 1.45;
+      ctx.fillText(dp1, cMidX, dy1);
+      ctx.fillText(dp2, cMidX, dy2);
+      dynEndY = dy2 + dynFs * 0.7;
+    }
   }
 
-  // 品名（盡量大，從朝代底部往下排）
+  // 品名：粗體，盡量大，超寬時折兩行並同步縮字
   ctx.fillStyle = '#000000';
   var name = item.name || '';
   var nfs = 6 * S;
   ctx.font = 'bold ' + nfs + 'px "Noto Serif TC", serif';
-  while (ctx.measureText(name).width > CTR_W - S && nfs > 2.5 * S) {
+  while (ctx.measureText(name).width > maxW && nfs > 2.5 * S) {
     nfs -= 0.25 * S;
     ctx.font = 'bold ' + nfs + 'px "Noto Serif TC", serif';
   }
-  if (ctx.measureText(name).width > CTR_W - S) {
-    // 折兩行
-    nfs = 3.5 * S;
-    ctx.font = 'bold ' + nfs + 'px "Noto Serif TC", serif';
-    var nameGap = (H - dynEndY - nfs * 2.2) / 2;
-    var nameY1 = dynEndY + nameGap + nfs * 0.6;
-    var nameY2 = nameY1 + nfs * 1.3;
+  if (ctx.measureText(name).width > maxW) {
+    // 折兩行，並縮字直到每半行都能放進去
     var mid = Math.ceil(name.length / 2);
-    ctx.fillText(name.slice(0, mid), cMidX, Math.min(nameY1, H * 0.60));
-    ctx.fillText(name.slice(mid),    cMidX, Math.min(nameY2, H * 0.84));
+    var np1 = name.slice(0, mid), np2 = name.slice(mid);
+    nfs = Math.min(nfs, 3.8 * S);
+    ctx.font = 'bold ' + nfs + 'px "Noto Serif TC", serif';
+    while (nfs > 2 * S &&
+           (ctx.measureText(np1).width > maxW || ctx.measureText(np2).width > maxW)) {
+      nfs -= 0.15 * S;
+      ctx.font = 'bold ' + nfs + 'px "Noto Serif TC", serif';
+    }
+    var availH = H - dynEndY - S;
+    var ny1 = dynEndY + availH * 0.35;
+    var ny2 = dynEndY + availH * 0.75;
+    ctx.fillText(np1, cMidX, ny1);
+    ctx.fillText(np2, cMidX, ny2);
   } else {
-    // 單行：垂直置中於朝代底部到底邊的空間
+    // 單行：垂直置中於朝代底部到底邊
     var nameY = dynEndY + (H - dynEndY) / 2;
     ctx.fillText(name, cMidX, nameY);
   }
+
+  ctx.restore();  // 解除裁切
 
   // 分隔線
   ctx.strokeStyle = 'rgba(26,22,18,0.1)';
