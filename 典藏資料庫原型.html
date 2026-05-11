@@ -353,7 +353,8 @@ textarea.ffi{resize:vertical;min-height:72px;line-height:1.8;}
 var WEBAPP_URL = localStorage.getItem('dbWebappUrl') || '';
 var DEMO_MODE  = false; // 無 URL 時使用範例資料
 
-var dataCache = { loaded: false, items: [] };
+var dataCache    = { loaded: false, items: [] };
+var pendingDeepId = null;  // QR 掃碼 deep link 待開品項
 
 function apiGet(params, cb) {
   var url = WEBAPP_URL + '?' + Object.keys(params).map(function(k){return k+'='+encodeURIComponent(params[k]);}).join('&');
@@ -448,34 +449,16 @@ document.getElementById('hsetupBtn').addEventListener('click',function(){showSet
 function init() {
   // 處理 QR code 掃描：?id=CQ-1150429-001
   var urlParams = new URLSearchParams(window.location.search);
-  var deepId    = urlParams.get('id');
+  pendingDeepId = urlParams.get('id');  // 存起來，等 renderBrowse 資料載完後再開
 
   if (!WEBAPP_URL) {
     showSetup();
-  } else {
-    renderBrowse();
-    initFileMode();
-    document.getElementById('fileMode').style.display = 'none';
+    return;
   }
 
-  // 若有 deep link id，等資料載入後開啟
-  if (deepId) {
-    loadItems(false, function(err) {
-      if (err) return;
-      var found = dataCache.items.find(function(i){ return i.id === deepId; });
-      if (found) {
-        // 若剛才進 setupScreen，先切到 browse
-        if (WEBAPP_URL) {
-          document.getElementById('browseMode').style.display = '';
-          document.getElementById('fileMode').style.display   = 'none';
-          document.getElementById('tabBrowse').className = 'tab on';
-          document.getElementById('tabFile').className   = 'tab';
-          mode = 'browse';
-        }
-        openDetail(deepId);
-      }
-    });
-  }
+  renderBrowse();
+  initFileMode();
+  document.getElementById('fileMode').style.display = 'none';
 }
 
 /* ========== SETUP SCREEN ========== */
@@ -575,6 +558,13 @@ function renderBrowse(q, noReload) {
       }
       renderBrowse(q, true);
       lazyCoverLoad();
+      // QR 掃碼 deep link：資料載完後自動開啟對應品項
+      if (pendingDeepId) {
+        var _id = pendingDeepId;
+        pendingDeepId = null;
+        var found = dataCache.items.find(function(i){ return i.id === _id; });
+        if (found) setTimeout(function(){ openDetail(_id); }, 80);
+      }
     });
     return;
   }
