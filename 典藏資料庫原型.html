@@ -96,6 +96,9 @@ mark{background:rgba(196,125,62,0.28);color:var(--ink);border-radius:2px;padding
 .panel-img-main .img-nav.prev{left:10px;}
 .panel-img-main .img-nav.next{right:10px;}
 .panel-img-main .img-counter{position:absolute;bottom:8px;right:10px;font-size:10px;color:rgba(245,240,232,0.6);letter-spacing:1px;background:rgba(26,22,18,0.4);padding:2px 7px;border-radius:10px;}
+.panel-img-main .img-share{position:absolute;bottom:8px;left:10px;background:rgba(26,22,18,0.5);border:none;color:#fff;font-size:14px;width:32px;height:32px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s;z-index:5;line-height:1;}
+.panel-img-main .img-share:hover{background:rgba(26,22,18,0.85);}
+.panel-img-main .img-share.loading{opacity:.5;pointer-events:none;}
 .panel-img-thumbs{display:flex;gap:6px;padding:8px 12px;overflow-x:auto;-webkit-overflow-scrolling:touch;align-items:center;}
 .panel-img-thumbs::-webkit-scrollbar{height:3px;}
 .panel-img-thumbs::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
@@ -775,6 +778,9 @@ function updateImgStrip() {
                  + '<button class="img-nav next" id="imgNext">›</button>';
     }
     mainInner += '<span class="img-counter">'+(viewImgIdx+1)+' / '+total+'</span>';
+    if (hasDrive) {
+      mainInner += '<button class="img-share" id="imgShareBtn" title="分享／下載">⬇</button>';
+    }
   } else {
     mainInner = '<span class="img-placeholder">'+emj+'</span>';
   }
@@ -786,6 +792,57 @@ function updateImgStrip() {
   var nextBtn = document.getElementById('imgNext');
   if (prevBtn) prevBtn.onclick = function(e){ e.stopPropagation(); viewImgIdx=(viewImgIdx-1+total)%total; updateImgStrip(); };
   if (nextBtn) nextBtn.onclick = function(e){ e.stopPropagation(); viewImgIdx=(viewImgIdx+1)%total; updateImgStrip(); };
+
+  // 分享／下載按鈕
+  var shareBtn = document.getElementById('imgShareBtn');
+  if (shareBtn) {
+    shareBtn.onclick = function(e) {
+      e.stopPropagation();
+      var cur = driveImages[viewImgIdx];
+      if (!cur) return;
+      var btn = this;
+      btn.classList.add('loading');
+      btn.textContent = '…';
+      var fileName = (currentItem.id || 'image') + '_' + (viewImgIdx + 1) + '.jpg';
+      var downloadUrl = cur.id
+        ? 'https://drive.google.com/uc?id=' + cur.id + '&export=download'
+        : (cur.url || cur.thumb);
+
+      function fallbackDownload() {
+        btn.classList.remove('loading'); btn.textContent = '⬇';
+        var a = document.createElement('a');
+        a.href = downloadUrl; a.download = fileName; a.target = '_blank';
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      }
+
+      // 先嘗試 fetch 圖片（手機可走 Web Share API，電腦走下載）
+      fetch(cur.thumb, { mode: 'cors' })
+        .then(function(r) {
+          if (!r.ok) throw new Error('fetch failed');
+          return r.blob();
+        })
+        .then(function(blob) {
+          btn.classList.remove('loading'); btn.textContent = '⬇';
+          var file = new File([blob], fileName, { type: blob.type || 'image/jpeg' });
+          // 手機：Web Share API
+          if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+            navigator.share({ files: [file], title: currentItem.name || currentItem.id })
+              .catch(function() { fallbackDownload(); });
+          } else {
+            // 電腦：直接下載
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url; a.download = fileName;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+          }
+        })
+        .catch(function() {
+          // CORS 失敗：退回直接下載原始 URL
+          fallbackDownload();
+        });
+    };
+  }
 
   // 大圖點擊 → 開新分頁（Drive 圖片）
   if (hasDrive && showImgs[viewImgIdx]) {
