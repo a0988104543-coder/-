@@ -287,6 +287,22 @@ textarea.ffi{resize:vertical;min-height:72px;line-height:1.8;}
 .qf-save:disabled{opacity:.5;cursor:not-allowed;}
 .qf-cancel{background:none;border:1px solid var(--border);border-radius:var(--r);padding:14px 18px;font-family:'Noto Sans TC',sans-serif;font-size:13px;cursor:pointer;color:var(--ink2);}
 
+/* FILE SUB-MODE BAR */
+.file-sub-bar{display:flex;background:var(--paper2);border-bottom:1px solid var(--border);padding:0 16px;}
+.file-sub-btn{flex:1;padding:10px 0;font-size:12px;letter-spacing:2px;background:none;border:none;border-bottom:2px solid transparent;color:var(--ink3);cursor:pointer;font-family:'Noto Sans TC',sans-serif;transition:all .2s;text-align:center;}
+.file-sub-btn.on{color:var(--accent);border-bottom-color:var(--accent);}
+
+/* LOC PICKER MODAL */
+.locpick-modal{position:fixed;inset:0;background:rgba(26,22,18,0.55);z-index:250;display:flex;align-items:center;justify-content:center;padding:16px;}
+.locpick-box{background:var(--paper);border-radius:var(--r);width:min(460px,100%);max-height:90vh;overflow-y:auto;box-shadow:0 8px 40px rgba(26,22,18,0.25);}
+.locpick-header{background:var(--ink);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;border-radius:var(--r) var(--r) 0 0;}
+.locpick-title{font-family:'Noto Serif TC',serif;font-weight:300;font-size:14px;letter-spacing:3px;color:var(--paper2);}
+.locpick-close{background:none;border:none;color:rgba(245,240,232,0.6);font-size:18px;cursor:pointer;padding:4px 8px;line-height:1;}
+.locpick-body{padding:14px 16px;}
+.loc-input-row{display:flex;gap:8px;align-items:center;}
+.loc-pick-btn{flex-shrink:0;padding:7px 11px;font-size:11px;letter-spacing:1px;border:1px solid var(--border);border-radius:var(--r);background:var(--paper2);cursor:pointer;color:var(--ink2);font-family:'Noto Sans TC',sans-serif;transition:all .15s;white-space:nowrap;}
+.loc-pick-btn:hover{border-color:var(--accent2);color:var(--accent);}
+
 /* DELETE CONFIRM */
 .del-confirm{position:fixed;inset:0;background:rgba(26,22,18,0.55);z-index:200;display:flex;align-items:center;justify-content:center;}
 .del-box{background:var(--paper);border-radius:var(--r);padding:24px 28px;width:min(320px,90%);text-align:center;}
@@ -442,6 +458,9 @@ var imgsLoading= false;
 var batchMode     = false;
 var batchSelected = new Set();
 var FS = {step:1,cat:'',photo:false,photoFiles:[],photoPreviewUrls:[],photoCompressed:[],aiDone:false,aiLoad:false,selCab:null,selLayer:null,loc:'',name:'',size:'',cond:'',dynasty:'',kiln:'',craft:'',desc:'',price:'',note:'',newId:'',newFolderId:'',newFolderUrl:''};
+var fileSubMode = 'quick'; // 'quick' | 'full'
+var QF2 = {step:1,cat:'',photoFiles:[],photoPreviewUrls:[],photoCompressed:[],newId:'',submitting:false};
+var editLocState = {selCab:null, selLayer:null}; // 位置 Modal 暫存狀態
 
 /* ========== INIT ========== */
 
@@ -575,7 +594,7 @@ function renderBrowse(q, noReload) {
   items = dataCache.items;
 
   var filtered = items.filter(function(i) {
-    var catOk = currentCat==='all' || i.cat===currentCat;
+    var catOk = currentCat==='all' || (currentCat==='PENDING' ? (!i.name||i.name==='（未命名）') : i.cat===currentCat);
     var qOk = !q || [i.name,i.dynasty,i.kiln,i.craft,i.loc,i.id,i.desc,i.note].some(function(v){
       return v && v.toLowerCase().indexOf(q.toLowerCase())>=0;
     });
@@ -584,10 +603,11 @@ function renderBrowse(q, noReload) {
 
   var cats = ['all','CQ','ZH','YQ','ZX'];
   var catLabels = {all:'全部',CQ:'CQ 瓷器',ZH:'ZH 字畫',YQ:'YQ 玉器',ZX:'ZX 雜項'};
+  var pendingCnt = items.filter(function(i){ return !i.name||i.name==='（未命名）'; }).length;
   var catBar = '<div class="catbar">'+cats.map(function(c){
     var cnt = c==='all'?items.length:items.filter(function(i){return i.cat===c;}).length;
     return '<button class="catf'+(currentCat===c?' on':'')+'" data-cat="'+c+'">'+catLabels[c]+' <span style="opacity:.5">'+cnt+'</span></button>';
-  }).join('')+'</div>';
+  }).join('')+(pendingCnt>0?'<button class="catf'+(currentCat==='PENDING'?' on':'')+'" data-cat="PENDING">⏳待補 <span style="opacity:.5">'+pendingCnt+'</span></button>':'')+'</div>';
 
   var modeNote = (DEMO_MODE && !WEBAPP_URL)
     ? '<div style="background:rgba(196,125,62,0.1);border-bottom:1px solid rgba(196,125,62,0.2);padding:7px 16px;font-size:11px;color:var(--accent2)">離線範例模式 — <span style="cursor:pointer;text-decoration:underline" id="goSetupLink">點此連線 Google Sheets</span></div>'
@@ -607,7 +627,7 @@ function renderBrowse(q, noReload) {
           +(item.isNew?'<div class="new-badge">新建</div>':'')
           +'<div class="card-img" style="background:'+clr+'28">'+cardImgInner+'</div>'
           +'<div class="card-body"><div class="card-id">'+item.id+'</div>'
-          +'<div class="card-name">'+hlText(item.name, q)+'</div>'
+          +'<div class="card-name">'+(!item.name||item.name==='（未命名）'?'<span style="color:var(--ink3);font-style:italic;font-size:12px">待補資料</span>':hlText(item.name,q))+'</div>'
           +'<div class="card-meta"><span>'+hlText(item.dynasty, q)+'</span>'
           +'<span><span class="sdot" style="background:'+(condColor[item.cond]||'#888')+'"></span>'+escHtml(item.cond)+'</span>'
           +'</div></div></div>';
@@ -1024,6 +1044,9 @@ function renderPanel(){
   } else {
     document.getElementById('saveBtn').onclick   = saveEdit;
     document.getElementById('cancelBtn').onclick = function(){editMode=false;changedKeys=[];renderPanel();};
+    // 📍 位置平面圖按鈕
+    var locPickBtn = document.getElementById('editLocPickBtn');
+    if (locPickBtn) locPickBtn.onclick = function(){ showLocPickerModal(); };
   }
 
   if (changedKeys.length>0) {
@@ -1044,6 +1067,7 @@ function renderField(f,d){
   } else {
     if      (f.type==='textarea') inner='<textarea class="ffi'+(hl?' highlight':'')+'" data-key="'+f.key+'" style="width:100%">'+escHtml(val)+'</textarea>';
     else if (f.type==='select')   inner='<select class="ffi'+(hl?' highlight':'')+'" data-key="'+f.key+'">'+(f.opts||[]).map(function(o){return '<option'+(val===o?' selected':'')+'>'+o+'</option>';}).join('')+'</select>';
+    else if (f.key==='loc')       inner='<div class="loc-input-row"><input class="ffi'+(hl?' highlight':'')+'" data-key="loc" id="editLocInput" value="'+escHtml(val)+'"><button class="loc-pick-btn" id="editLocPickBtn">📍平面圖</button></div>';
     else                          inner='<input class="ffi'+(hl?' highlight':'')+'" data-key="'+f.key+'" value="'+escHtml(val)+'">';
   }
   return '<div class="pfg"><div class="pfl">'+f.label+'</div>'+inner+'</div>';
@@ -1488,8 +1512,25 @@ function confirmDelete(id){
 /* ========== FILING MODE ========== */
 
 function initFileMode(){
-  document.getElementById('fileMode').innerHTML='<div class="sbar" id="fileSbar"></div><div class="cont" id="fileCont"></div>';
-  renderFile();
+  document.getElementById('fileMode').innerHTML=
+    '<div class="file-sub-bar">'
+    +'<button class="file-sub-btn'+(fileSubMode==='quick'?' on':'')+'" id="fsubQuick">快速建檔</button>'
+    +'<button class="file-sub-btn'+(fileSubMode==='full'?' on':'')+'" id="fsubFull">完整建檔</button>'
+    +'</div>'
+    +'<div id="fileSubContent"></div>';
+  document.getElementById('fsubQuick').onclick=function(){fileSubMode='quick';this.className='file-sub-btn on';document.getElementById('fsubFull').className='file-sub-btn';renderFileSubContent();};
+  document.getElementById('fsubFull').onclick=function(){fileSubMode='full';this.className='file-sub-btn on';document.getElementById('fsubQuick').className='file-sub-btn';renderFileSubContent();};
+  renderFileSubContent();
+}
+
+function renderFileSubContent(){
+  var el=document.getElementById('fileSubContent');if(!el)return;
+  if(fileSubMode==='full'){
+    el.innerHTML='<div class="sbar" id="fileSbar"></div><div class="cont" id="fileCont"></div>';
+    renderFile();
+  } else {
+    renderQuickFile2();
+  }
 }
 
 function renderFile(){
@@ -2207,6 +2248,307 @@ function _qfFinish(itemId){
     switchMode('browse');
     openDetail(itemId);
   }, 150);
+}
+
+/* ========== LOC PICKER MODAL ========== */
+
+function showLocPickerModal() {
+  // 讀取目前欄位值，嘗試預選
+  var curVal = (document.getElementById('editLocInput') || {}).value || '';
+  editLocState = {selCab: null, selLayer: null};
+  // 解析現有位置代碼 (如 L-01-A-2 或 R-03-1)
+  if (curVal) {
+    var parts = curVal.split('-');
+    if (curVal.startsWith('L') && parts.length === 4) {
+      editLocState.selCab   = parts[0]+'-'+parts[1]+'-'+parts[2];
+      editLocState.selLayer = parseInt(parts[3]);
+    } else if (curVal.startsWith('R') && parts.length === 3) {
+      editLocState.selCab   = parts[0]+'-'+parts[1];
+      editLocState.selLayer = parseInt(parts[2]);
+    }
+  }
+
+  var old = document.getElementById('locPickModal');
+  if (old) old.remove();
+  var modal = document.createElement('div');
+  modal.className = 'locpick-modal'; modal.id = 'locPickModal';
+  document.body.appendChild(modal);
+  renderLocPickerModal();
+  modal.addEventListener('click', function(e){ if(e.target===modal) closeLocPickerModal(false); });
+}
+
+function renderLocPickerModal() {
+  var modal = document.getElementById('locPickModal');
+  if (!modal) return;
+
+  // 使用暫存狀態渲染平面圖
+  var savedCab   = editLocState.selCab;
+  var savedLayer = editLocState.selLayer;
+
+  // 暫時借用 FS 的選擇函數需要的格式：用局部變數重建 HTML
+  var locPickHtml = buildLocPickerHtml(savedCab, savedLayer);
+
+  // 已選結果列
+  var resultHtml = '';
+  if (savedCab && savedLayer) {
+    var loc = savedCab + '-' + savedLayer;
+    var p = loc.split('-'), desc = '';
+    if (loc.startsWith('L')) desc = '左側第'+parseInt(p[1])+'組・'+(CAB_NAMES[p[2]]||p[2])+'・第'+p[3]+'層';
+    else desc = '右側第'+parseInt(p[1])+'架・第'+p[2]+'層';
+    resultHtml = '<div class="presult" style="margin-bottom:10px">'
+      +'<div><div style="font-size:9px;letter-spacing:1px;color:var(--ink3);margin-bottom:2px">已選位置</div>'
+      +'<div class="pcode">'+loc+'</div>'
+      +'<div class="pdesc">'+desc+'</div></div>'
+      +'<span class="pclr" id="locPickClear">重新選擇</span>'
+      +'</div>';
+  }
+
+  modal.innerHTML =
+    '<div class="locpick-box">'
+    +'<div class="locpick-header"><div class="locpick-title">選擇存放位置</div><button class="locpick-close" id="locPickClose">✕</button></div>'
+    +'<div class="locpick-body">'
+    + resultHtml
+    + ((!savedCab || !savedLayer) ? locPickHtml : '')
+    + (savedCab && !savedLayer ? '<div style="font-size:11px;color:var(--ink3);text-align:center;margin-top:4px">↑ 請再選層號</div>' : '')
+    +'</div></div>';
+
+  document.getElementById('locPickClose').onclick = function(){ closeLocPickerModal(false); };
+  var clearBtn = document.getElementById('locPickClear');
+  if (clearBtn) clearBtn.onclick = function(){ editLocState={selCab:null,selLayer:null}; renderLocPickerModal(); };
+
+  // 綁定格位點擊
+  modal.querySelectorAll('[data-cab]').forEach(function(el){
+    el.addEventListener('click', function(){
+      editLocState.selCab   = this.getAttribute('data-cab');
+      editLocState.selLayer = null;
+      renderLocPickerModal();
+    });
+  });
+  modal.querySelectorAll('[data-layer]').forEach(function(el){
+    el.addEventListener('click', function(){
+      editLocState.selLayer = parseInt(this.getAttribute('data-layer'));
+      // 選好層號 → 自動關閉並回填
+      closeLocPickerModal(true);
+    });
+  });
+}
+
+function buildLocPickerHtml(selCab, selLayer) {
+  // 仿照 fpHtml() + layerHtml()，但使用 editLocState 而非 FS
+  var left = '';
+  for (var g = 5; g >= 1; g--) {
+    var cells = [{p:'C'},{p:'A'},{p:'D'},{p:'B'}];
+    var grid = '<div class="fp-2x2">'+cells.map(function(c){
+      var code = 'L-0'+g+'-'+c.p, sel = selCab===code;
+      return '<div class="cab-cell'+(sel?' sel':'')+'" data-cab="'+code+'">'+c.p+'</div>';
+    }).join('')+'</div>';
+    left += '<div class="fp-group"><div class="fp-group-label">L-0'+g+'</div>'+grid+'</div>';
+  }
+  var right = '';
+  for (var r = 5; r >= 1; r--) {
+    var code2 = 'R-0'+r, sel2 = selCab===code2;
+    right += '<div class="rack-cell'+(sel2?' sel':'')+'" data-cab="'+code2+'">'+code2+'</div>';
+  }
+  var fp = '<div class="fp-outer"><div class="fp-orient"><span class="fp-orient-label">左側（L）</span><span class="fp-orient-label">右側（R）</span></div>'
+    +'<div class="fp-room"><div class="fp-left">'+left+'</div><div class="fp-aisle"><div class="fp-aisle-label">走道</div></div><div class="fp-right">'+right+'</div></div>'
+    +'<div class="fp-door">▲ 門口</div></div>';
+
+  // 層號選擇
+  var layer = '';
+  if (selCab) {
+    layer = '<div class="lpanel"><div class="llbl">'+selCab+'</div><div class="lbtns">'
+      +[4,3,2,1].map(function(n){
+        return '<button class="lbtn'+(selLayer===n?' sel':'')+'" data-layer="'+n+'">第'+n+'層</button>';
+      }).join('')+'</div><div class="lhint">1底　4頂</div></div>';
+  }
+  return fp + layer;
+}
+
+function closeLocPickerModal(confirm) {
+  var modal = document.getElementById('locPickModal');
+  if (confirm && editLocState.selCab && editLocState.selLayer) {
+    var loc = editLocState.selCab + '-' + editLocState.selLayer;
+    var inp = document.getElementById('editLocInput');
+    if (inp) { inp.value = loc; }
+  }
+  editLocState = {selCab: null, selLayer: null};
+  if (modal) modal.remove();
+}
+
+/* ========== QUICK FILE TAB (快速建檔子選項) ========== */
+
+function renderQuickFile2(){
+  var el=document.getElementById('fileSubContent');if(!el)return;
+  if(QF2.step===1)el.innerHTML=qf2Step1Html();
+  else if(QF2.step===2)el.innerHTML=qf2Step2Html();
+  else el.innerHTML=qf2Step3Html();
+  bindQF2();
+}
+
+function qf2Step1Html(){
+  return '<div class="cont">'
+    +'<div style="margin-bottom:14px"><div style="font-family:Noto Serif TC,serif;font-size:15px;font-weight:300;letter-spacing:2px;margin-bottom:4px">選擇分類</div>'
+    +'<div style="font-size:12px;color:var(--ink3)">先選分類、再上傳照片，一秒完成第一階段建檔</div></div>'
+    +'<div class="catgrid">'+Object.keys(CATS).map(function(k){return '<div class="catbtn'+(QF2.cat===k?' sel':'')+'" id="qf2cat_'+k+'"><div style="font-size:26px;margin-bottom:5px">'+CATS[k].e+'</div><div style="font-size:14px;font-weight:500;letter-spacing:1px;color:var(--accent)">'+k+'</div><div style="font-size:11px;color:var(--ink3)">'+CATS[k].n+'</div></div>';}).join('')+'</div>'
+    +'<div class="abar"><button class="bp" id="qf2next1"'+(QF2.cat?'':' disabled')+'>下一步</button></div>'
+    +'</div>';
+}
+
+function qf2PreviewId(){
+  if(!QF2.cat)return '---';
+  if(!dataCache.loaded)return QF2.cat+'-⋯';
+  var d=new Date(),roc=d.getFullYear()-1911;
+  var mm=('0'+(d.getMonth()+1)).slice(-2),dd=('0'+d.getDate()).slice(-2);
+  var prefix=QF2.cat+'-'+roc+mm+dd+'-';
+  var cnt=dataCache.items.filter(function(i){return i.id.indexOf(prefix)===0;}).length;
+  return prefix+('00'+(cnt+1)).slice(-3);
+}
+
+function qf2Step2Html(){
+  var nextId=qf2PreviewId();
+  var cnt=QF2.photoFiles?QF2.photoFiles.length:0;
+  var thumbsHtml='';
+  if(cnt>0){
+    thumbsHtml='<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">';
+    QF2.photoPreviewUrls.forEach(function(url,i){
+      thumbsHtml+='<div style="position:relative;flex-shrink:0"><div style="width:64px;height:64px;border-radius:4px;overflow:hidden;background:var(--paper3);border:1px solid var(--border)"><img src="'+url+'" style="width:100%;height:100%;object-fit:cover"></div>'
+        +'<button data-qf2rm="'+i+'" style="position:absolute;top:-5px;right:-5px;width:17px;height:17px;border-radius:50%;background:var(--accent);color:#fff;font-size:9px;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1">✕</button></div>';
+    });
+    thumbsHtml+='<div id="qf2addmore" style="width:64px;height:64px;border-radius:4px;border:1.5px dashed var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;color:var(--ink3);font-size:18px;flex-shrink:0">＋<span style="font-size:8px;letter-spacing:1px">新增</span></div></div>';
+  }
+  var zoneHtml=cnt===0
+    ?'<div class="uzn" id="qf2zone" style="cursor:pointer"><div style="font-size:24px;margin-bottom:6px">🖼</div><div style="font-size:13px;color:var(--ink2)">從相簿選取照片</div><div style="font-size:11px;color:var(--ink3);margin-top:4px">可一次選多張・建議正面、細節、底款</div></div>'
+    :'<div class="uzn" id="qf2zone" style="border-style:solid;border-color:var(--jade);padding:12px;cursor:default">'+thumbsHtml+'<div style="font-size:11px;color:var(--ink3);text-align:center;margin-top:4px">或將照片拖曳至此新增</div></div>';
+  return '<div class="cont">'
+    +'<div style="margin-bottom:12px"><div style="font-family:Noto Serif TC,serif;font-size:15px;font-weight:300;letter-spacing:2px;margin-bottom:4px">上傳照片</div>'
+    +'<div style="font-size:12px;color:var(--ink3)">分類：'+QF2.cat+' '+CATS[QF2.cat].n+'</div></div>'
+    +'<div style="background:rgba(139,69,19,0.06);border:1px solid rgba(139,69,19,0.2);border-radius:var(--r);padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:12px">'
+    +'<div style="font-size:10px;letter-spacing:1px;color:var(--ink3)">即將建立編號</div>'
+    +'<div style="font-family:Noto Serif TC,serif;font-size:16px;letter-spacing:3px;color:var(--accent)">'+nextId+'</div>'
+    +'</div>'
+    +zoneHtml
+    +'<input type="file" id="qf2input" accept="image/*" multiple style="display:none">'
+    +'<div class="abar">'
+    +'<button class="bs" id="qf2back2">上一步</button>'
+    +'<button class="bp" id="qf2create"'+(cnt>0?'':' disabled')+'>建立'+(cnt>0?' ('+cnt+'張)':'')+'</button>'
+    +'</div></div>';
+}
+
+function qf2Step3Html(){
+  return '<div class="cont" style="text-align:center;padding:36px 20px">'
+    +'<div style="font-size:40px;margin-bottom:12px">✅</div>'
+    +'<div style="font-family:Noto Serif TC,serif;font-size:19px;letter-spacing:4px;color:var(--accent);margin-bottom:8px">'+escHtml(QF2.newId)+'</div>'
+    +'<div style="font-size:12px;color:var(--ink3);line-height:1.9;margin-bottom:4px">建檔完成，照片上傳中<br>品項資料可在瀏覽模式點開後補填</div>'
+    +'<div style="display:flex;gap:10px;justify-content:center;margin-top:24px">'
+    +'<button class="bs" id="qf2viewBtn">查看品項</button>'
+    +'<button class="bp" id="qf2continueBtn">繼續建檔</button>'
+    +'</div></div>';
+}
+
+function addQF2Photos(files){
+  if(!files||!files.length)return;
+  if(!QF2.photoFiles)QF2.photoFiles=[];
+  if(!QF2.photoPreviewUrls)QF2.photoPreviewUrls=[];
+  if(!QF2.photoCompressed)QF2.photoCompressed=[];
+  var pending=files.length;
+  files.forEach(function(f){
+    QF2.photoFiles.push(f);
+    var reader=new FileReader();
+    reader.onload=function(e){
+      var img=new Image();
+      img.onload=function(){
+        var MAX=1200,w=img.width,h=img.height;
+        if(w>MAX||h>MAX){if(w>h){h=Math.round(h*MAX/w);w=MAX;}else{w=Math.round(w*MAX/h);h=MAX;}}
+        var c=document.createElement('canvas');c.width=w;c.height=h;
+        c.getContext('2d').drawImage(img,0,0,w,h);
+        var dataUrl=c.toDataURL('image/jpeg',0.82);
+        QF2.photoPreviewUrls.push(dataUrl);
+        QF2.photoCompressed.push(dataUrl);
+        pending--;
+        if(pending===0)renderQuickFile2();
+      };
+      img.src=e.target.result;
+    };
+    reader.readAsDataURL(f);
+  });
+}
+
+function bindQF2(){
+  function on(id,fn){var el=document.getElementById(id);if(el)el.addEventListener('click',fn);}
+  Object.keys(CATS).forEach(function(k){on('qf2cat_'+k,function(){QF2.cat=k;renderQuickFile2();});});
+  on('qf2next1',function(){if(QF2.cat){QF2.step=2;renderQuickFile2();}});
+  on('qf2back2',function(){QF2.step=1;renderQuickFile2();});
+  on('qf2zone',function(e){
+    var rm=e.target.closest?e.target.closest('[data-qf2rm]'):null;
+    if(rm){var idx=parseInt(rm.getAttribute('data-qf2rm'));QF2.photoFiles.splice(idx,1);QF2.photoPreviewUrls.splice(idx,1);if(QF2.photoCompressed)QF2.photoCompressed.splice(idx,1);renderQuickFile2();return;}
+    var add=e.target.closest?e.target.closest('#qf2addmore'):null;
+    if(add){var fi2=document.getElementById('qf2input');if(fi2)fi2.click();return;}
+    if(!QF2.photoFiles||!QF2.photoFiles.length){var fi3=document.getElementById('qf2input');if(fi3)fi3.click();}
+  });
+  var fi=document.getElementById('qf2input');
+  if(fi){fi.onchange=function(){var files=Array.prototype.slice.call(this.files);addQF2Photos(files);this.value='';};}
+  var zone=document.getElementById('qf2zone');
+  if(zone){
+    zone.addEventListener('dragover',function(e){e.preventDefault();zone.classList.add('drag-over-file');});
+    zone.addEventListener('dragleave',function(e){if(!zone.contains(e.relatedTarget))zone.classList.remove('drag-over-file');});
+    zone.addEventListener('drop',function(e){e.preventDefault();zone.classList.remove('drag-over-file');var files=Array.prototype.slice.call(e.dataTransfer.files).filter(function(f){return f.type.indexOf('image/')===0;});if(files.length)addQF2Photos(files);});
+  }
+  on('qf2create',function(){if(!QF2.submitting&&QF2.photoFiles&&QF2.photoFiles.length)qf2DoCreate();});
+  on('qf2viewBtn',function(){
+    var id=QF2.newId,cat=QF2.cat;
+    QF2={step:1,cat:'',photoFiles:[],photoPreviewUrls:[],photoCompressed:[],newId:'',submitting:false};
+    if(id){currentCat=cat;switchMode('browse');setTimeout(function(){openDetail(id);},100);}
+  });
+  on('qf2continueBtn',function(){
+    var cat=QF2.cat;
+    QF2={step:1,cat:cat,photoFiles:[],photoPreviewUrls:[],photoCompressed:[],newId:'',submitting:false};
+    renderQuickFile2();
+  });
+}
+
+function qf2DoCreate(){
+  if(QF2.submitting)return;
+  QF2.submitting=true;
+  var btn=document.getElementById('qf2create');if(btn){btn.disabled=true;btn.textContent='建立中⋯';}
+  var newItem={loc:'',name:'（未命名）',dynasty:'',kiln:'',craft:'',size:'',cond:(COND_OPTS[QF2.cat]||COND_OPTS.CQ)[0],desc:'',price:'',note:''};
+
+  function afterCreate(itemId){
+    QF2.newId=itemId;
+    var photos=(QF2.photoCompressed||[]).slice();
+    if(!photos.length){hideSaving();QF2.submitting=false;QF2.step=3;renderQuickFile2();return;}
+    showSaving('上傳圖片（0/'+photos.length+'）⋯');
+    var done=0,ts=new Date().toISOString().replace(/[-:T]/g,'').slice(0,14);
+    photos.forEach(function(dataUrl,i){
+      var base64=dataUrl.split(',')[1];
+      var fn=itemId+'_'+ts+'_'+('0'+(i+1)).slice(-2)+'.jpg';
+      apiPost({action:'uploadImage',itemId:itemId,fileName:fn,base64Data:base64,mimeType:'image/jpeg'},function(err,data){
+        done++;
+        if(i===0&&!err&&data&&data.thumb){var cIdx=dataCache.items.findIndex(function(it){return it.id===itemId;});if(cIdx>=0)dataCache.items[cIdx].coverThumb=data.thumb;}
+        showSaving('上傳圖片（'+done+'/'+photos.length+'）⋯');
+        if(done===photos.length){hideSaving();QF2.submitting=false;QF2.step=3;renderQuickFile2();}
+      });
+    });
+  }
+
+  if(DEMO_MODE||!WEBAPP_URL){
+    var d=new Date(),roc=d.getFullYear()-1911,mm=('0'+(d.getMonth()+1)).slice(-2),dd2=('0'+d.getDate()).slice(-2);
+    var prefix=QF2.cat+'-'+roc+mm+dd2+'-';
+    var cnt=dataCache.items.filter(function(i){return i.id.indexOf(prefix)===0;}).length;
+    var newId=prefix+('00'+(cnt+1)).slice(-3);
+    var localItem=Object.assign({},newItem,{id:newId,cat:QF2.cat,color:CAT_COLORS[QF2.cat],emoji:CATS[QF2.cat].e,images:[CATS[QF2.cat].e],folderId:'',folderUrl:'',coverThumb:QF2.photoPreviewUrls.length?QF2.photoPreviewUrls[0]:'',isNew:true});
+    dataCache.items.push(localItem);
+    QF2.submitting=false;QF2.newId=newId;QF2.step=3;renderQuickFile2();
+    return;
+  }
+
+  showSaving('建檔中⋯');
+  apiPost({action:'create',cat:QF2.cat,item:newItem},function(err,data){
+    if(err){hideSaving();QF2.submitting=false;if(btn){btn.disabled=false;btn.textContent='建立'+(QF2.photoFiles.length?' ('+QF2.photoFiles.length+'張)':'');}alert('建檔失敗：'+err);return;}
+    var localItem=Object.assign({},newItem,{id:data.id,cat:QF2.cat,color:CAT_COLORS[QF2.cat],emoji:CATS[QF2.cat].e,images:[CATS[QF2.cat].e],folderId:data.folderId||'',folderUrl:data.folderUrl||'',coverThumb:'',isNew:true});
+    dataCache.items.push(localItem);
+    hideSaving();
+    afterCreate(data.id);
+  });
 }
 
 /* ========== START ========== */
