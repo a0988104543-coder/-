@@ -984,7 +984,7 @@ function renderPanel(){
 
   var actHtml = !editMode
     ? '<div class="act-bar"><button class="act-btn" id="copyBtn"><span class="act-btn-icon">📋</span><span>複製資訊</span></button><button class="act-btn" id="labelBtn"><span class="act-btn-icon">🏷</span><span>標籤</span></button><button class="act-btn primary" id="editBtn"><span class="act-btn-icon">✏️</span><span>編輯</span></button><button class="act-btn danger" id="deleteBtn"><span class="act-btn-icon">🗑</span><span>刪除</span></button></div>'
-    : '<div class="act-bar"><button class="act-btn" id="cancelBtn" style="flex:.6"><span class="act-btn-icon">✕</span><span>取消</span></button><button class="act-btn primary" id="saveBtn" style="flex:1.4"><span class="act-btn-icon">💾</span><span>儲存變更</span></button></div>';
+    : '<div class="act-bar"><button class="act-btn" id="cancelBtn" style="flex:.5"><span class="act-btn-icon">✕</span><span>取消</span></button><button class="act-btn" id="geminiBtn" style="flex:.7"><span class="act-btn-icon">🤖</span><span>辨識</span></button><button class="act-btn primary" id="saveBtn" style="flex:1.3"><span class="act-btn-icon">💾</span><span>儲存變更</span></button></div>';
 
   document.getElementById('panel').innerHTML =
     '<div class="panel-header"><div class="panel-id"><span style="color:rgba(245,240,232,0.35);margin-right:6px">'+CATS[d.cat].e+'</span>'+d.id+'</div>'
@@ -1047,6 +1047,9 @@ function renderPanel(){
     // 📍 位置平面圖按鈕
     var locPickBtn = document.getElementById('editLocPickBtn');
     if (locPickBtn) locPickBtn.onclick = function(){ showLocPickerModal(); };
+    // 🤖 Gemini 辨識
+    var geminiBtn = document.getElementById('geminiBtn');
+    if (geminiBtn) geminiBtn.onclick = function(){ showGeminiPasteModal(); };
   }
 
   if (changedKeys.length>0) {
@@ -1624,19 +1627,39 @@ function fStep3(){
 }
 
 function fStep4(){
-  if(FS.aiLoad)return '<div style="text-align:center;padding:40px"><div class="spinner"></div><div style="font-size:12px;color:var(--ink3);letter-spacing:2px">AI 辨識中⋯</div></div>';
-  var lbl=CAT_FIELD_LABELS[FS.cat]||CAT_FIELD_LABELS.CQ;
-  var ai=AI_MOCK[FS.cat]||AI_MOCK.CQ;
-  var aiSec=!FS.aiDone
-    ?'<div style="background:var(--paper2);border-radius:var(--r);padding:18px;text-align:center;margin-bottom:14px"><div style="font-size:24px;margin-bottom:8px">🤖</div><div style="font-size:13px;color:var(--ink2);line-height:1.8;margin-bottom:12px">AI 將辨識：'+lbl.f2+'、'+lbl.f3+'、'+lbl.f4+'、紋飾描述</div><button class="bai" id="fAiBtn">開始 AI 辨識</button></div>'
-    :'<div class="aibox"><div class="aihdr"><span>✦ AI 辨識建議</span><span style="font-size:11px;color:var(--ink3)">請人工校對</span></div><div class="aibody">'
-      +'<div class="fr" style="margin-bottom:12px"><div class="fg"><div class="fl">'+lbl.f2+' <span class="abadge">✦ AI</span></div><input id="aid" class="ffi aif" value="'+escHtml(FS.dynasty||ai.dynasty)+'"></div><div class="fg"><div class="fl">'+lbl.f3+' <span class="abadge">✦ AI</span></div><input id="aik" class="ffi aif" value="'+escHtml(FS.kiln||ai.kiln)+'"></div></div>'
-      +'<div class="fg" style="margin-bottom:12px"><div class="fl">'+lbl.f4+' <span class="abadge">✦ AI</span></div><input id="aic" class="ffi aif" value="'+escHtml(FS.craft||ai.craft)+'"></div>'
-      +'<div class="fg"><div class="fl">簡述 <span class="abadge">✦ AI</span></div><textarea id="aidc" class="ffi aif">'+escHtml(FS.desc||ai.desc)+'</textarea></div>'
-      +'</div></div><div style="font-size:11px;color:var(--ink3);margin-bottom:14px">🟢 綠色框為 AI 填入，可直接修改</div>';
-  return '<div style="margin-bottom:14px"><div style="font-family:Noto Serif TC,serif;font-size:15px;font-weight:300;letter-spacing:2px;margin-bottom:4px">AI 辨識</div></div>'
-    +aiSec+'<div class="fr"><div class="fg"><div class="fl">參考價</div><input id="fpr" class="ffi" placeholder="NT$ ..." value="'+escHtml(FS.price)+'"></div><div class="fg"><div class="fl">備註</div><input id="fnt" class="ffi" placeholder="補充說明" value="'+escHtml(FS.note)+'"></div></div>'
-    +'<div class="abar"><button class="bs" id="fBack4">上一步</button><button class="bp" id="fNext4">下一步（'+(FS.aiDone?'已辨識':'略過')+'）</button></div>';
+  var lbl = CAT_FIELD_LABELS[FS.cat] || CAT_FIELD_LABELS.CQ;
+
+  var pasteBlock =
+    '<div style="margin-bottom:14px">'
+    +'<div style="font-size:10px;letter-spacing:2px;color:var(--ink3);margin-bottom:6px">步驟一：確認尺寸後複製提問，前往 Gemini 上傳照片</div>'
+    +'<div style="display:flex;gap:8px;margin-bottom:4px">'
+    +'<input class="ffi" id="f4size" placeholder="例：高 18cm" value="'+escHtml(FS.size||'')+'" style="flex:1">'
+    +'<button class="bai" id="f4copyPrompt" style="white-space:nowrap;padding:8px 12px">📋 複製提問</button>'
+    +'</div>'
+    +'<div style="font-size:10px;letter-spacing:2px;color:var(--ink3);margin:12px 0 6px">步驟二：將 Gemini 回覆全部貼入，欄位自動填入</div>'
+    +'<textarea id="f4paste" class="ffi" style="min-height:96px;line-height:1.6" placeholder="貼入 Gemini 的完整回覆…"></textarea>'
+    +'</div>';
+
+  var resultBlock = FS.aiDone
+    ? '<div class="aibox"><div class="aihdr"><span>✦ 辨識結果</span><span style="font-size:11px;color:var(--ink3)">請人工校對</span></div><div class="aibody">'
+      +'<div class="fg" style="margin-bottom:10px"><div class="fl">品項名稱 <span class="abadge">✦</span></div><input id="ainm" class="ffi aif" value="'+escHtml(FS.name)+'"></div>'
+      +'<div class="fr" style="margin-bottom:10px">'
+      +'<div class="fg"><div class="fl">'+lbl.f2+' <span class="abadge">✦</span></div><input id="aid" class="ffi aif" value="'+escHtml(FS.dynasty)+'"></div>'
+      +'<div class="fg"><div class="fl">'+lbl.f3+' <span class="abadge">✦</span></div><input id="aik" class="ffi aif" value="'+escHtml(FS.kiln)+'"></div>'
+      +'</div>'
+      +'<div class="fg" style="margin-bottom:10px"><div class="fl">'+lbl.f4+' <span class="abadge">✦</span></div><input id="aic" class="ffi aif" value="'+escHtml(FS.craft)+'"></div>'
+      +'<div class="fg"><div class="fl">簡述 <span class="abadge">✦</span></div><textarea id="aidc" class="ffi aif" style="min-height:80px">'+escHtml(FS.desc)+'</textarea></div>'
+      +'</div></div>'
+      +'<div style="font-size:11px;color:var(--ink3);margin-bottom:14px">🟢 綠色框為辨識填入，可直接修改</div>'
+    : '';
+
+  return '<div style="margin-bottom:14px"><div style="font-family:Noto Serif TC,serif;font-size:15px;font-weight:300;letter-spacing:2px;margin-bottom:4px">Gemini 辨識</div>'
+    +'<div style="font-size:12px;color:var(--ink3)">分類：'+FS.cat+' '+CATS[FS.cat].n+'</div></div>'
+    + pasteBlock + resultBlock
+    +'<div class="fr"><div class="fg"><div class="fl">參考價</div><input id="fpr" class="ffi" placeholder="NT$ ..." value="'+escHtml(FS.price)+'"></div>'
+    +'<div class="fg"><div class="fl">備註</div><input id="fnt" class="ffi" placeholder="補充說明" value="'+escHtml(FS.note)+'"></div></div>'
+    +'<div class="abar"><button class="bs" id="fBack4">上一步</button>'
+    +'<button class="bp" id="fNext4">下一步（'+(FS.aiDone?'已辨識':'略過')+'）</button></div>';
 }
 
 function fStep5(){
@@ -1883,8 +1906,41 @@ function bindFileClicks(){
   })();
   on('fNext3',function(){fGo(4);});
   on('fBack4',function(){fGo(3);});
-  on('fAiBtn',function(){ triggerAiRecognition(); }); // 手動重試按鈕
+  // 複製提問按鈕
+  on('f4copyPrompt',function(){
+    var sizeEl=document.getElementById('f4size');
+    var size=sizeEl?sizeEl.value.trim():'';
+    if(size)FS.size=size;
+    var prompt=buildGeminiPrompt(FS.cat,size);
+    if(navigator.clipboard){
+      navigator.clipboard.writeText(prompt).then(function(){
+        var btn=document.getElementById('f4copyPrompt');
+        if(btn){btn.textContent='✅ 已複製';setTimeout(function(){if(btn)btn.textContent='📋 複製提問';},2000);}
+      });
+    }
+  });
+  // 貼上自動解析
+  (function(){
+    var pa=document.getElementById('f4paste');
+    if(pa){pa.addEventListener('input',function(){
+      var text=this.value;
+      if(text.length<30)return;
+      var r=parseGeminiResult(text,FS.cat);
+      if(!r.name&&!r.dynasty)return;
+      if(r.name)    FS.name    =r.name;
+      if(r.dynasty) FS.dynasty =r.dynasty;
+      if(r.kiln)    FS.kiln    =r.kiln;
+      if(r.craft)   FS.craft   =r.craft;
+      if(r.size)    FS.size    =r.size;
+      if(r.price)   FS.price   =r.price;
+      if(r.desc)    FS.desc    =r.desc;
+      FS.aiDone=true;
+      renderFile();
+    });}
+  })();
   on('fNext4',function(){
+    if(document.getElementById('ainm'))FS.name=document.getElementById('ainm').value;
+    if(document.getElementById('f4size'))FS.size=document.getElementById('f4size').value;
     if(document.getElementById('aid'))FS.dynasty=document.getElementById('aid').value;
     if(document.getElementById('aik'))FS.kiln=document.getElementById('aik').value;
     if(document.getElementById('aic'))FS.craft=document.getElementById('aic').value;
@@ -2250,6 +2306,125 @@ function _qfFinish(itemId){
   }, 150);
 }
 
+/* ========== GEMINI 辨識 ========== */
+
+var GEMINI_PROMPTS = {
+  CQ: [
+    '你是中國文物瓷器的專家學者，請根據上傳的照片及以下提供的資訊，協助我完成文物登錄敘述。',
+    '請嚴格遵守下列格式，每個欄位單獨一行，不要增加其他說明文字：',
+    '',
+    '品項名稱：（控制在14字元內，例如：磁州窯系白地黑花蓮花紋鼓式罐）',
+    '朝代：（推估可能時期，例如：金元時期）',
+    '窯口：（推估所屬窯系，例如：磁州窯系）',
+    '工藝／裝飾：（列舉核心工藝特點，例如：白地黑花、釉上紅彩）',
+    '尺寸：{SIZE}',
+    '參考價：（估計市場行情區間，例如：NT$ 15,000–35,000）',
+    '簡述：',
+    '　型制：描述器物的整體形狀、胎體厚薄與重心分布。',
+    '　紋飾與工藝：詳細說明裝飾技法、主題圖案及筆觸風格。',
+    '　特徵觀察：針對釉面表現（開片、氣泡）、露胎處（火石紅、胎色）以及老化痕跡進行描述。',
+    '　底款：說明器底是否有款識或特殊標記。',
+  ].join('\n'),
+  ZH: [
+    '你是中國書畫文物的專家學者，請根據上傳的照片及以下提供的資訊，協助我完成文物登錄敘述。',
+    '請嚴格遵守下列格式，每個欄位單獨一行，不要增加其他說明文字：',
+    '',
+    '品項名稱：（控制在14字元內，例如：溥心畬山水冊頁十二開）',
+    '年代：（推估創作時期，例如：民國初年）',
+    '作者：（落款作者或推估，例如：溥心畬）',
+    '型式與媒材：（例如：水墨紙本、設色絹本）',
+    '尺寸：{SIZE}',
+    '參考價：（估計市場行情區間，例如：NT$ 80,000–150,000）',
+    '簡述：',
+    '　構圖與筆墨：描述整體構圖佈局、用筆方式與墨色層次。',
+    '　題材與風格：說明畫面主題、所屬畫派風格特徵。',
+    '　款識與鈐印：詳述落款位置、內容、鈐印數量與印文。',
+    '　紙絹狀態：描述紙質或絹面的保存狀況、汙損或修補痕跡。',
+  ].join('\n'),
+  YQ: [
+    '你是中國玉器文物的專家學者，請根據上傳的照片及以下提供的資訊，協助我完成文物登錄敘述。',
+    '請嚴格遵守下列格式，每個欄位單獨一行，不要增加其他說明文字：',
+    '',
+    '品項名稱：（控制在14字元內，例如：清代和田白玉壽星擺件）',
+    '年代：（推估可能時期，例如：清代）',
+    '玉種：（例如：和田白玉、青白玉）',
+    '器型：（例如：圓雕人物、片狀掛件）',
+    '尺寸：{SIZE}',
+    '參考價：（估計市場行情區間，例如：NT$ 80,000–150,000）',
+    '簡述：',
+    '　玉質與皮色：描述玉料質地、透明度、皮色分布。',
+    '　造型與雕工：說明整體造型、刀法技巧與細節處理。',
+    '　紋飾：描述裝飾圖案、吉祥寓意。',
+    '　底部與款識：說明底部處理方式及是否有款識。',
+  ].join('\n'),
+  ZX: [
+    '你是中國文物雜項的專家學者，請根據上傳的照片及以下提供的資訊，協助我完成文物登錄敘述。',
+    '請嚴格遵守下列格式，每個欄位單獨一行，不要增加其他說明文字：',
+    '',
+    '品項名稱：（控制在14字元內，例如：明代銅鎏金觀音坐像）',
+    '年代：（推估可能時期，例如：明代萬曆年間）',
+    '媒材：（例如：銅鎏金、木雕彩繪）',
+    '型制：（例如：坐像、爐式、筒狀）',
+    '尺寸：{SIZE}',
+    '參考價：（估計市場行情區間，例如：NT$ 120,000–280,000）',
+    '簡述：',
+    '　造型與工藝：描述整體造型特徵、鑄造或雕刻技法。',
+    '　材質與表面：說明材質特性、包漿、鎏金或彩繪保存狀況。',
+    '　紋飾與細節：描述裝飾圖案、銘文或特殊細節。',
+    '　底部與款識：說明底部處理方式及是否有款識或鑄款。',
+  ].join('\n'),
+};
+
+function buildGeminiPrompt(cat, size) {
+  var tpl = GEMINI_PROMPTS[cat] || GEMINI_PROMPTS.CQ;
+  return tpl.replace('{SIZE}', size && size.trim() ? size.trim() : '（請填入）');
+}
+
+function parseGeminiResult(text, cat) {
+  var result = {};
+  var descParts = [];
+  var inDesc = false;
+
+  // Main field name → result key（依分類）
+  var fieldMap = {
+    '品項名稱':'name',
+    '朝代':'dynasty','年代':'dynasty',
+    '窯口':'kiln','作者':'kiln','玉種':'kiln','媒材':'kiln',
+    '工藝／裝飾':'craft','工藝/裝飾':'craft',
+    '型式與媒材':'craft','器型':'craft',
+    '型制': (cat==='ZX' ? 'craft' : null),
+    '尺寸':'size',
+    '參考價':'price',
+  };
+
+  text.split('\n').forEach(function(line) {
+    var clean = line.replace(/^[\s•　\-\*＊◆◇▶▷]+/, '').trim();
+    if (!clean) return;
+
+    if (inDesc) { descParts.push(clean); return; }
+
+    var ci = clean.indexOf('：');
+    if (ci < 0) ci = clean.indexOf(':');
+    if (ci < 0) return;
+
+    var key = clean.substring(0, ci).trim();
+    var val = clean.substring(ci + 1).trim();
+
+    if (key === '簡述') {
+      inDesc = true;
+      if (val) descParts.push(val);
+      return;
+    }
+    if (!val) return;
+
+    var mapped = fieldMap[key];
+    if (mapped) result[mapped] = val;
+  });
+
+  if (descParts.length) result.desc = descParts.join('\n');
+  return result;
+}
+
 /* ========== LOC PICKER MODAL ========== */
 
 function showLocPickerModal() {
@@ -2373,6 +2548,77 @@ function closeLocPickerModal(confirm) {
   }
   editLocState = {selCab: null, selLayer: null};
   if (modal) modal.remove();
+}
+
+/* ========== GEMINI PASTE MODAL（品項編輯用）========== */
+
+function showGeminiPasteModal() {
+  var cat  = currentItem ? currentItem.cat : 'CQ';
+  var curSize = '';
+  var sizeEl = document.querySelector('[data-key="size"]');
+  if (sizeEl) curSize = sizeEl.value;
+  else if (currentItem) curSize = currentItem.size || '';
+
+  var old = document.getElementById('geminiModal');
+  if (old) old.remove();
+
+  var modal = document.createElement('div');
+  modal.className = 'locpick-modal'; modal.id = 'geminiModal';
+  modal.innerHTML =
+    '<div class="locpick-box">'
+    +'<div class="locpick-header"><div class="locpick-title">Gemini 辨識填入</div><button class="locpick-close" id="gmClose">✕</button></div>'
+    +'<div class="locpick-body">'
+    +'<div style="font-size:11px;color:var(--ink3);margin-bottom:10px;line-height:1.9">'
+    +'① 確認尺寸後按「複製提問」<br>② 開啟 Gemini，上傳照片並貼上提問<br>③ 將 Gemini 完整回覆貼入下方</div>'
+    +'<div style="display:flex;gap:8px;margin-bottom:12px">'
+    +'<input class="ffi" id="gmSize" placeholder="尺寸（例：高 18cm）" value="'+escHtml(curSize)+'" style="flex:1">'
+    +'<button class="bai" id="gmCopy" style="white-space:nowrap;padding:7px 11px;font-size:12px">📋 複製提問</button>'
+    +'</div>'
+    +'<textarea id="gmPaste" class="ffi" style="min-height:130px;line-height:1.6;margin-bottom:10px" placeholder="將 Gemini 回覆全部貼入此處…"></textarea>'
+    +'<button class="bp" id="gmParse" style="width:100%">解析並填入欄位</button>'
+    +'</div></div>';
+  document.body.appendChild(modal);
+
+  document.getElementById('gmClose').onclick = function(){ modal.remove(); };
+  modal.onclick = function(e){ if(e.target===modal) modal.remove(); };
+
+  document.getElementById('gmCopy').onclick = function(){
+    var size = document.getElementById('gmSize').value.trim();
+    var prompt = buildGeminiPrompt(cat, size);
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(prompt).then(function(){
+        var btn = document.getElementById('gmCopy');
+        if(btn){btn.textContent='✅ 已複製';setTimeout(function(){if(btn)btn.textContent='📋 複製提問';},2000);}
+      });
+    }
+  };
+
+  document.getElementById('gmParse').onclick = function(){
+    var text = document.getElementById('gmPaste').value.trim();
+    if (!text) { alert('請先貼入 Gemini 回覆'); return; }
+    var r = parseGeminiResult(text, cat);
+    if (!r.name && !r.dynasty && !r.desc) { alert('解析失敗，請確認格式是否正確'); return; }
+    applyGeminiToPanel(r);
+    modal.remove();
+  };
+}
+
+function applyGeminiToPanel(r) {
+  function fill(key, val) {
+    if (!val) return;
+    var el = document.querySelector('[data-key="'+key+'"]');
+    if (!el) return;
+    el.value = val;
+    el.classList.add('highlight');
+    setTimeout(function(){ el.classList.remove('highlight'); }, 2500);
+  }
+  fill('name',    r.name);
+  fill('dynasty', r.dynasty);
+  fill('kiln',    r.kiln);
+  fill('craft',   r.craft);
+  fill('size',    r.size);
+  fill('price',   r.price);
+  fill('desc',    r.desc);
 }
 
 /* ========== QUICK FILE TAB (快速建檔子選項) ========== */
