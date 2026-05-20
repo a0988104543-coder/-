@@ -699,33 +699,47 @@ function hlText(s, q) {
   return safe.replace(new RegExp('('+eq+')', 'gi'), '<mark>$1</mark>');
 }
 
-// 懶加載封面：找出有 folderId 但無 coverThumb 的品項，逐一抓第一張圖
+// 懶加載封面：
+// 第一次載入：掃描所有品項修正舊封面，完成後寫入 localStorage 旗標
+// 之後每次：只處理尚無封面的品項，不影響速度
 function lazyCoverLoad() {
   if (!WEBAPP_URL || DEMO_MODE) return;
-  var pending = dataCache.items.filter(function(i){ return i.folderId && !i.coverThumb; });
-  if (!pending.length) return;
+  var fixDone = localStorage.getItem('coverFixV1');
+  var pending = fixDone
+    ? dataCache.items.filter(function(i){ return i.folderId && !i.coverThumb; })
+    : dataCache.items.filter(function(i){ return i.folderId; });
+  if (!pending.length) { if (!fixDone) localStorage.setItem('coverFixV1','1'); return; }
   var idx = 0;
   function next() {
-    if (idx >= pending.length) return;
+    if (idx >= pending.length) {
+      if (!fixDone) localStorage.setItem('coverFixV1','1');
+      return;
+    }
     var item = pending[idx++];
     apiGet({ action:'images', itemId:item.id }, function(err, data) {
       if (!err && data && data.images && data.images.length) {
         var sorted = data.images.slice().sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); });
         var thumb = sorted[0].thumb;
-        // 更新 cache
-        item.coverThumb = thumb;
-        var cIdx = dataCache.items.findIndex(function(i){ return i.id === item.id; });
-        if (cIdx >= 0) dataCache.items[cIdx].coverThumb = thumb;
-        // 直接更新卡片 DOM，不用重新 render 整個 grid
-        var cardImg = document.querySelector('.card[data-id="'+item.id+'"] .card-img');
-        if (cardImg && !cardImg.querySelector('img')) {
-          var imgEl = document.createElement('img');
-          imgEl.src = thumb;
-          imgEl.onerror = function(){ this.remove(); };
-          cardImg.insertBefore(imgEl, cardImg.firstChild);
+        if (thumb !== item.coverThumb) {
+          // 更新 cache
+          item.coverThumb = thumb;
+          var cIdx = dataCache.items.findIndex(function(i){ return i.id === item.id; });
+          if (cIdx >= 0) dataCache.items[cIdx].coverThumb = thumb;
+          // 直接更新卡片 DOM
+          var cardImg = document.querySelector('.card[data-id="'+item.id+'"] .card-img');
+          if (cardImg) {
+            var existing = cardImg.querySelector('img');
+            if (existing) { existing.src = thumb; }
+            else {
+              var imgEl = document.createElement('img');
+              imgEl.src = thumb;
+              imgEl.onerror = function(){ this.remove(); };
+              cardImg.insertBefore(imgEl, cardImg.firstChild);
+            }
+          }
+          // 寫回 Sheets 第 15 欄（靜默，不等回應）
+          if (WEBAPP_URL) apiPost({ action:'setCover', itemId:item.id, thumb:thumb }, function(){});
         }
-        // 寫回 Sheets 第 15 欄（靜默，不等回應）
-        if (WEBAPP_URL) apiPost({ action:'setCover', itemId:item.id, thumb:thumb }, function(){});
       }
       setTimeout(next, 300); // 每 300ms 一筆，避免同時打太多請求
     });
