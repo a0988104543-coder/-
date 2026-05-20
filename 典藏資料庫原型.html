@@ -704,22 +704,21 @@ function hlText(s, q) {
 // 之後每次：只處理尚無封面的品項，不影響速度
 function lazyCoverLoad() {
   if (!WEBAPP_URL || DEMO_MODE) return;
-  var fixDone = localStorage.getItem('coverFixV1');
+  var fixDone = localStorage.getItem('coverFixV2');
   var pending = fixDone
     ? dataCache.items.filter(function(i){ return i.folderId && !i.coverThumb; })
     : dataCache.items.filter(function(i){ return i.folderId; });
-  if (!pending.length) { if (!fixDone) localStorage.setItem('coverFixV1','1'); return; }
+  if (!pending.length) { if (!fixDone) localStorage.setItem('coverFixV2','1'); return; }
   var idx = 0;
   function next() {
     if (idx >= pending.length) {
-      if (!fixDone) localStorage.setItem('coverFixV1','1');
+      if (!fixDone) localStorage.setItem('coverFixV2','1');
       return;
     }
     var item = pending[idx++];
     apiGet({ action:'images', itemId:item.id }, function(err, data) {
       if (!err && data && data.images && data.images.length) {
-        var sorted = data.images.slice().sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); });
-        var thumb = sorted[0].thumb;
+        var thumb = data.images[0].thumb;
         if (thumb !== item.coverThumb) {
           // 更新 cache
           item.coverThumb = thumb;
