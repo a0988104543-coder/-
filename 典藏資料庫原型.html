@@ -1703,8 +1703,12 @@ function addPhotos(files) {
   if (!FS.photoPreviewUrls)FS.photoPreviewUrls = [];
   if (!FS.photoCompressed) FS.photoCompressed  = [];
   var pending = files.length;
-  files.forEach(function(f){
+  var startIdx = FS.photoFiles.length;
+  files.forEach(function(f, fi){
+    var targetIdx = startIdx + fi;
     FS.photoFiles.push(f);
+    FS.photoPreviewUrls.push(null);  // 預留 slot，保持選取順序
+    FS.photoCompressed.push(null);   // 預留 slot，保持選取順序
     var reader = new FileReader();
     reader.onload = function(e){
       var img = new Image();
@@ -1715,8 +1719,8 @@ function addPhotos(files) {
         var c=document.createElement('canvas'); c.width=w; c.height=h;
         c.getContext('2d').drawImage(img,0,0,w,h);
         var compressed = c.toDataURL('image/jpeg', 0.82);
-        FS.photoPreviewUrls.push(compressed);  // 預覽用
-        FS.photoCompressed.push(compressed);   // 上傳用（已壓縮）
+        FS.photoPreviewUrls[targetIdx] = compressed;  // 預覽用（依選取順序）
+        FS.photoCompressed[targetIdx]  = compressed;  // 上傳用（依選取順序）
         pending--;
         if(pending===0){ FS.photo=true; FS.aiDone=false; renderFile(); }
       };
@@ -2697,8 +2701,12 @@ function addQF2Photos(files){
   if(!QF2.photoPreviewUrls)QF2.photoPreviewUrls=[];
   if(!QF2.photoCompressed)QF2.photoCompressed=[];
   var pending=files.length;
-  files.forEach(function(f){
+  var startIdx=QF2.photoFiles.length;
+  files.forEach(function(f,fi){
+    var targetIdx=startIdx+fi;
     QF2.photoFiles.push(f);
+    QF2.photoPreviewUrls.push(null);  // 預留 slot，保持選取順序
+    QF2.photoCompressed.push(null);   // 預留 slot，保持選取順序
     var reader=new FileReader();
     reader.onload=function(e){
       var img=new Image();
@@ -2708,8 +2716,8 @@ function addQF2Photos(files){
         var c=document.createElement('canvas');c.width=w;c.height=h;
         c.getContext('2d').drawImage(img,0,0,w,h);
         var dataUrl=c.toDataURL('image/jpeg',0.82);
-        QF2.photoPreviewUrls.push(dataUrl);
-        QF2.photoCompressed.push(dataUrl);
+        QF2.photoPreviewUrls[targetIdx]=dataUrl;  // 依選取順序
+        QF2.photoCompressed[targetIdx]=dataUrl;   // 依選取順序
         pending--;
         if(pending===0)renderQuickFile2();
       };
