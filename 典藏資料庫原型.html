@@ -710,7 +710,8 @@ function lazyCoverLoad() {
     var item = pending[idx++];
     apiGet({ action:'images', itemId:item.id }, function(err, data) {
       if (!err && data && data.images && data.images.length) {
-        var thumb = data.images[0].thumb;
+        var sorted = data.images.slice().sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); });
+        var thumb = sorted[0].thumb;
         // 更新 cache
         item.coverThumb = thumb;
         var cIdx = dataCache.items.findIndex(function(i){ return i.id === item.id; });
