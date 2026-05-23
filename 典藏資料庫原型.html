@@ -668,7 +668,12 @@ function renderBrowse(q, noReload) {
     + '</div>'
     + grid;
 
-  document.getElementById('searchInput').addEventListener('input',function(){renderBrowse(this.value, true);});
+  (function(){
+    var si=document.getElementById('searchInput'), composing=false;
+    si.addEventListener('compositionstart',function(){composing=true;});
+    si.addEventListener('compositionend',function(){composing=false;renderBrowse(this.value,true);});
+    si.addEventListener('input',function(){if(!composing)renderBrowse(this.value,true);});
+  }());
   document.querySelectorAll('.catf').forEach(function(el){
     el.addEventListener('click',function(){
       currentCat=this.getAttribute('data-cat');
