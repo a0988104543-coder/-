@@ -662,7 +662,8 @@ function renderBrowse(q, noReload) {
 
   browseEl.innerHTML = catBar + modeNote + batchBar
     + '<div class="toolbar"><div class="search-wrap"><span class="search-icon">⌕</span>'
-    + '<input id="searchInput" type="text" placeholder="搜尋品名、朝代、位置…" value="'+escHtml(q)+'"></div>'
+    + '<input id="searchInput" type="search" enterkeyhint="search" placeholder="搜尋品名、朝代、位置…" value="'+escHtml(q)+'"></div>'
+    + '<button class="tbatch" id="searchGoBtn">搜尋</button>'
     + '<div class="count">'+filtered.length+' 件</div>'
     + '<button class="tbatch'+(batchMode?' on':'')+'" id="batchToggle">'+(batchMode?'✕':'🖨')+'</button>'
     + '</div>'
@@ -671,8 +672,10 @@ function renderBrowse(q, noReload) {
   (function(){
     var si=document.getElementById('searchInput'), composing=false;
     si.addEventListener('compositionstart',function(){composing=true;});
-    si.addEventListener('compositionend',function(){composing=false;renderBrowse(this.value,true);});
-    si.addEventListener('input',function(){if(!composing)renderBrowse(this.value,true);});
+    si.addEventListener('compositionend',function(){composing=false;});
+    si.addEventListener('keydown',function(e){if(e.key==='Enter'&&!composing){renderBrowse(this.value,true);}});
+    var goBtn=document.getElementById('searchGoBtn');
+    if(goBtn) goBtn.addEventListener('click',function(){renderBrowse(si.value,true);});
   }());
   document.querySelectorAll('.catf').forEach(function(el){
     el.addEventListener('click',function(){
@@ -2356,7 +2359,7 @@ var GEMINI_PROMPTS = {
     '你是中國文物瓷器的專家學者，請根據上傳的照片及以下提供的資訊，協助我完成文物登錄敘述。',
     '請嚴格遵守下列格式，每個欄位單獨一行，不要增加其他說明文字：',
     '',
-    '品項名稱：（控制在14字元內，例如：磁州窯系白地黑花蓮花紋鼓式罐）',
+    '品項名稱：（一律以朝代或年號開頭，控制在14字元內；若窯口研判為景德鎮窯／景德鎮窯系／景德鎮民窯／景德鎮官窯，不要把窯口寫入名稱，改以年號代替，例如：清雍正 鬥彩纏枝蓮紋碗；若為汝窯、鈞窯、龍泉窯、建窯、磁州窯、耀州窯、哥窯等具辨識度的地方名窯，則保留窯口，例如：金 磁州窯系白地黑花蓮花紋鼓式罐）',
     '朝代：（推估可能時期，例如：金元時期）',
     '窯口：（推估所屬窯系，例如：磁州窯系）',
     '工藝／裝飾：（列舉核心工藝特點，例如：白地黑花、釉上紅彩）',
