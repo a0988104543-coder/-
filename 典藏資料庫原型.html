@@ -80,6 +80,9 @@ mark{background:rgba(196,125,62,0.28);color:var(--ink);border-radius:2px;padding
 /* DETAIL PANEL */
 .overlay{display:none;position:fixed;inset:0;background:rgba(26,22,18,0.5);z-index:100;justify-content:flex-end;}
 .overlay.open{display:flex;}
+.img-lightbox{display:none;position:fixed;inset:0;background:rgba(10,8,6,0.92);z-index:260;align-items:center;justify-content:center;padding:24px;cursor:zoom-out;}
+.img-lightbox.open{display:flex;}
+.img-lightbox img{max-width:100%;max-height:100%;object-fit:contain;}
 .panel{width:min(460px,100%);height:100%;background:var(--paper);overflow-y:auto;display:flex;flex-direction:column;animation:slideIn .25s ease;}
 @keyframes slideIn{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
 .panel-header{background:var(--ink);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10;}
@@ -350,6 +353,7 @@ textarea.ffi{resize:vertical;min-height:72px;line-height:1.8;}
   <div class="overlay" id="overlay">
     <div class="panel" id="panel"></div>
   </div>
+  <div class="img-lightbox" id="imgLightbox"><img id="imgLightboxImg" src="" alt=""></div>
   <div class="api-saving" id="apiSaving">儲存中⋯</div>
 
   <!-- Camera FAB -->
@@ -484,6 +488,21 @@ document.getElementById('hsetupBtn').addEventListener('click',function(){showSet
     window.scrollTo({top:0, behavior:'smooth'});
   });
 }());
+
+// 圖片放大檢視（點主圖放大，點任一處關閉）
+(function(){
+  var lb = document.getElementById('imgLightbox');
+  if (lb) lb.addEventListener('click', closeImageLightbox);
+}());
+function openImageLightbox(thumbUrl){
+  var img = document.getElementById('imgLightboxImg');
+  img.src = thumbUrl.replace(/sz=w\d+/, 'sz=w1600');
+  document.getElementById('imgLightbox').classList.add('open');
+}
+function closeImageLightbox(){
+  document.getElementById('imgLightbox').classList.remove('open');
+  document.getElementById('imgLightboxImg').src = '';
+}
 
 function init() {
   // 處理 QR code 掃描：?id=CQ-1150429-001
@@ -906,10 +925,10 @@ function updateImgStrip() {
     };
   }
 
-  // 大圖點擊 → 開新分頁（Drive 圖片）
+  // 大圖點擊 → 站內放大檢視（不再跳轉 Google Drive；進 Drive 請用「查看 Drive 圖片資料夾」按鈕）
   if (hasDrive && showImgs[viewImgIdx]) {
-    mainEl.onclick = function(){ window.open(showImgs[viewImgIdx].url, '_blank'); };
-    mainEl.title = '點擊開啟原圖';
+    mainEl.onclick = function(){ openImageLightbox(showImgs[viewImgIdx].thumb); };
+    mainEl.title = '點擊放大檢視';
   } else {
     mainEl.onclick = null;
     mainEl.title = '';
