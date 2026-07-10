@@ -748,17 +748,13 @@ function hlText(s, q) {
 // 之後每次：只處理尚無封面的品項，不影響速度
 function lazyCoverLoad() {
   if (!WEBAPP_URL || DEMO_MODE) return;
-  var fixDone = localStorage.getItem('coverFixV2');
-  var pending = fixDone
-    ? dataCache.items.filter(function(i){ return i.folderId && !i.coverThumb; })
-    : dataCache.items.filter(function(i){ return i.folderId; });
-  if (!pending.length) { if (!fixDone) localStorage.setItem('coverFixV2','1'); return; }
+  // 只抓 Sheets 封面欄位真的是空的品項，已有封面的一律不重抓
+  // （封面若因繞過 App 直接改動 Drive 而失真，靠開啟品項詳細頁時的自動校正修正，見 loadDriveImages）
+  var pending = dataCache.items.filter(function(i){ return i.folderId && !i.coverThumb; });
+  if (!pending.length) return;
   var idx = 0;
   function next() {
-    if (idx >= pending.length) {
-      if (!fixDone) localStorage.setItem('coverFixV2','1');
-      return;
-    }
+    if (idx >= pending.length) return;
     var item = pending[idx++];
     apiGet({ action:'images', itemId:item.id }, function(err, data) {
       if (!err && data && data.images && data.images.length) {
@@ -820,6 +816,14 @@ function loadDriveImages(itemId) {
     if (err || !data) { updateImgStrip(); return; }
     driveImages = data.images || [];
     if (viewImgIdx >= driveImages.length && driveImages.length > 0) viewImgIdx = 0;
+    // 封面自動校正：即時圖片與已存封面不一致時順手更新，不用等背景掃描
+    if (driveImages.length && currentItem && driveImages[0].thumb !== currentItem.coverThumb) {
+      var newThumb = driveImages[0].thumb;
+      currentItem.coverThumb = newThumb;
+      var cIdx = dataCache.items.findIndex(function(i){ return i.id === itemId; });
+      if (cIdx >= 0) dataCache.items[cIdx].coverThumb = newThumb;
+      if (WEBAPP_URL) apiPost({ action:'setCover', itemId:itemId, thumb:newThumb }, function(){});
+    }
     updateImgStrip();
   });
 }
