@@ -50,6 +50,7 @@ body{background:var(--paper);color:var(--ink);font-size:13px;font-family:'Noto S
 .card-meta{font-size:11px;color:var(--ink3);display:flex;justify-content:space-between;align-items:center;}
 .sdot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:3px;vertical-align:middle;}
 .new-badge{position:absolute;top:6px;right:6px;background:var(--jade);color:#fff;font-size:9px;letter-spacing:1px;padding:2px 6px;border-radius:10px;}
+.flag-badge{position:absolute;top:6px;left:6px;font-size:15px;z-index:2;filter:drop-shadow(0 1px 1px rgba(0,0,0,.35));}
 @keyframes cardFlash{0%{box-shadow:0 0 0 0 rgba(61,122,94,0.6)}50%{box-shadow:0 0 0 6px rgba(61,122,94,0.15)}100%{box-shadow:0 0 0 0 rgba(61,122,94,0)}}
 .card-saved{animation:cardFlash .8s ease-out;border-color:var(--jade)!important;}
 mark{background:rgba(196,125,62,0.28);color:var(--ink);border-radius:2px;padding:0 1px;font-style:normal;}
@@ -89,6 +90,10 @@ mark{background:rgba(196,125,62,0.28);color:var(--ink);border-radius:2px;padding
 .panel-id{font-size:11px;letter-spacing:2px;color:rgba(245,240,232,0.6);}
 .pbtn-close{background:none;border:none;color:rgba(245,240,232,0.6);font-size:18px;cursor:pointer;padding:4px 8px;line-height:1;transition:color .15s;}
 .pbtn-close:hover{color:var(--paper);}
+.panel-head-right{display:flex;align-items:center;gap:2px;}
+.pbtn-flag{background:none;border:none;color:rgba(245,240,232,0.6);font-size:18px;cursor:pointer;padding:4px 6px;line-height:1;transition:color .15s;}
+.pbtn-flag:hover{color:#e8b923;}
+.pbtn-flag.on{color:#e8b923;}
 /* 圖片區：大圖 + 縮圖列 */
 .panel-img-section{background:var(--paper2);border-bottom:1px solid var(--border);}
 .panel-img-main{position:relative;width:100%;height:260px;display:flex;align-items:center;justify-content:center;background:var(--ink);overflow:hidden;cursor:pointer;}
@@ -630,7 +635,7 @@ function renderBrowse(q, noReload) {
   items = dataCache.items;
 
   var filtered = items.filter(function(i) {
-    var catOk = currentCat==='all' || (currentCat==='PENDING' ? (!i.name||i.name==='（未命名）') : i.cat===currentCat);
+    var catOk = currentCat==='all' || (currentCat==='PENDING' ? (!i.name||i.name==='（未命名）') : currentCat==='FLAG' ? i.flag : i.cat===currentCat);
     var qOk = !q || [i.name,i.dynasty,i.kiln,i.craft,i.loc,i.id,i.desc,i.note].some(function(v){
       return v && v.toLowerCase().indexOf(q.toLowerCase())>=0;
     });
@@ -640,10 +645,12 @@ function renderBrowse(q, noReload) {
   var cats = ['all','CQ','ZH','YQ','ZX'];
   var catLabels = {all:'全部',CQ:'CQ 瓷器',ZH:'ZH 字畫',YQ:'YQ 玉器',ZX:'ZX 雜項'};
   var pendingCnt = items.filter(function(i){ return !i.name||i.name==='（未命名）'; }).length;
+  var flagCnt = items.filter(function(i){ return i.flag; }).length;
   var catBar = '<div class="catbar">'+cats.map(function(c){
     var cnt = c==='all'?items.length:items.filter(function(i){return i.cat===c;}).length;
     return '<button class="catf'+(currentCat===c?' on':'')+'" data-cat="'+c+'">'+catLabels[c]+' <span style="opacity:.5">'+cnt+'</span></button>';
-  }).join('')+(pendingCnt>0?'<button class="catf'+(currentCat==='PENDING'?' on':'')+'" data-cat="PENDING">⏳待補 <span style="opacity:.5">'+pendingCnt+'</span></button>':'')+'</div>';
+  }).join('')+(pendingCnt>0?'<button class="catf'+(currentCat==='PENDING'?' on':'')+'" data-cat="PENDING">⏳待補 <span style="opacity:.5">'+pendingCnt+'</span></button>':'')
+  +(flagCnt>0?'<button class="catf'+(currentCat==='FLAG'?' on':'')+'" data-cat="FLAG">⭐精選 <span style="opacity:.5">'+flagCnt+'</span></button>':'')+'</div>';
 
   var modeNote = (DEMO_MODE && !WEBAPP_URL)
     ? '<div style="background:rgba(196,125,62,0.1);border-bottom:1px solid rgba(196,125,62,0.2);padding:7px 16px;font-size:11px;color:var(--accent2)">離線範例模式 — <span style="cursor:pointer;text-decoration:underline" id="goSetupLink">點此連線 Google Sheets</span></div>'
@@ -661,6 +668,7 @@ function renderBrowse(q, noReload) {
         return '<div class="card'+(isSel?' b-sel':'')+'" data-id="'+item.id+'">'
           +(batchMode?'<div class="batch-chk">'+(isSel?'✓':'')+'</div>':'')
           +(item.isNew?'<div class="new-badge">新建</div>':'')
+          +(item.flag?'<div class="flag-badge">⭐</div>':'')
           +'<div class="card-img" style="background:'+clr+'28">'+cardImgInner+'</div>'
           +'<div class="card-body"><div class="card-id">'+item.id+'</div>'
           +'<div class="card-name">'+(!item.name||item.name==='（未命名）'?'<span style="color:var(--ink3);font-style:italic;font-size:12px">待補資料</span>':hlText(item.name,q))+'</div>'
@@ -1053,10 +1061,12 @@ function renderPanel(){
 
   document.getElementById('panel').innerHTML =
     '<div class="panel-header"><div class="panel-id"><span style="color:rgba(245,240,232,0.35);margin-right:6px">'+CATS[d.cat].e+'</span>'+d.id+'</div>'
-    +'<button class="pbtn-close" id="closeBtn">✕</button></div>'
+    +'<div class="panel-head-right"><button class="pbtn-flag'+(d.flag?' on':'')+'" id="flagBtn" title="精選">'+(d.flag?'★':'☆')+'</button><button class="pbtn-close" id="closeBtn">✕</button></div></div>'
     + imgHtml + driveHtml + fieldsHtml + metaHtml + actHtml;
 
   document.getElementById('closeBtn').onclick = closeDetail;
+  var flagBtn = document.getElementById('flagBtn');
+  if (flagBtn) flagBtn.onclick = function(){ toggleFlag(d); };
 
   // Populate image strip
   updateImgStrip();
@@ -1264,6 +1274,27 @@ function saveEdit(){
 
   apiPost({action:'update', id:currentItem.id, item:patch}, function(err){
     if (err) { hideSaving(); alert('儲存失敗：'+err); if(saveBtn){saveBtn.disabled=false;saveBtn.querySelector('span:last-child').textContent='儲存變更';} return; }
+    applyLocally();
+  });
+}
+
+function toggleFlag(item){
+  var newVal = !item.flag;
+  var btn = document.getElementById('flagBtn');
+  if (btn) btn.disabled = true;
+
+  function applyLocally(){
+    item.flag = newVal;
+    var idx = dataCache.items.findIndex(function(i){return i.id===item.id;});
+    if (idx>=0) dataCache.items[idx].flag = newVal;
+    renderPanel();
+    renderBrowse(document.getElementById('searchInput')?document.getElementById('searchInput').value:'', true);
+  }
+
+  if (DEMO_MODE || !WEBAPP_URL) { applyLocally(); return; }
+
+  apiPost({action:'update', id:item.id, item:{flag:newVal}}, function(err){
+    if (err) { if(btn) btn.disabled=false; alert('儲存失敗：'+err); return; }
     applyLocally();
   });
 }
