@@ -405,6 +405,29 @@ function apiPost(payload, cb) {
     .catch(function(e){ cb(e.message||'網路錯誤', null); });
 }
 
+// 併發限制上傳：一次最多同時 N 張，其餘排隊等待，避免一次打爆 Apps Script 的並行執行限制
+// uploadOne(item, index, next) 需在單張上傳完成後呼叫 next()
+var UPLOAD_CONCURRENCY = 3;
+function uploadPhotosLimited(items, limit, uploadOne, onProgress, onDone) {
+  var total = items.length, done = 0, nextIdx = 0, active = 0;
+  if (!total) { onDone(); return; }
+  function startNext() {
+    while (active < limit && nextIdx < total) {
+      (function(i){
+        active++;
+        uploadOne(items[i], i, function(){
+          active--; done++;
+          onProgress(done, total);
+          if (done === total) onDone();
+          else startNext();
+        });
+      })(nextIdx);
+      nextIdx++;
+    }
+  }
+  startNext();
+}
+
 function showSaving(text) {
   var el = document.getElementById('apiSaving');
   el.textContent = text || '儲存中⋯';
@@ -754,15 +777,26 @@ function hlText(s, q) {
 // 懶加載封面：
 // 第一次載入：掃描所有品項修正舊封面，完成後寫入 localStorage 旗標
 // 之後每次：只處理尚無封面的品項，不影響速度
+// 每次最多處理一小批（LAZY_COVER_BATCH），避免待補品項一多時背景任務跑很久、
+// 跟使用者手上正在做的操作（開品項、上傳中）搶 Apps Script 執行資源；沒補到的留到下次整批重載再補
+var LAZY_COVER_BATCH = 15;
+var LAZY_COVER_BUSY_WAIT = 1500; // 偵測到使用者正忙（開detail／上傳中）時，多等這麼久再試
 function lazyCoverLoad() {
   if (!WEBAPP_URL || DEMO_MODE) return;
   // 只抓 Sheets 封面欄位真的是空的品項，已有封面的一律不重抓
   // （封面若因繞過 App 直接改動 Drive 而失真，靠開啟品項詳細頁時的自動校正修正，見 loadDriveImages）
   var pending = dataCache.items.filter(function(i){ return i.folderId && !i.coverThumb; });
   if (!pending.length) return;
+  pending = pending.slice(0, LAZY_COVER_BATCH);
   var idx = 0;
+  function isUserBusy() {
+    var overlay = document.getElementById('overlay');
+    var saving  = document.getElementById('apiSaving');
+    return (overlay && overlay.classList.contains('open')) || (saving && saving.classList.contains('show'));
+  }
   function next() {
     if (idx >= pending.length) return;
+    if (isUserBusy()) { setTimeout(next, LAZY_COVER_BUSY_WAIT); return; }
     var item = pending[idx++];
     apiGet({ action:'images', itemId:item.id }, function(err, data) {
       if (!err && data && data.images && data.images.length) {
@@ -1919,28 +1953,29 @@ function doSave(cb) {
     });
     dataCache.items.push(localItem);
 
-    // 並行上傳所有圖片（已在選照片時壓縮完畢）
+    // 限制同時上傳張數，避免一次打爆 Apps Script 並行執行限制（已在選照片時壓縮完畢）
     var compressed = FS.photoCompressed || [];
     if (!compressed.length) { hideSaving(); cb(null); return; }
 
     var total    = compressed.length;
-    var done     = 0;
     var ts       = new Date().toISOString().replace(/[-:T]/g,'').slice(0,14);
     showSaving('上傳圖片（0/'+total+'）⋯');
 
-    compressed.forEach(function(dataUrl, i){
+    uploadPhotosLimited(compressed, UPLOAD_CONCURRENCY, function(dataUrl, i, next){
       var base64   = dataUrl.split(',')[1];
       var fileName = data.id+'_'+ts+'_'+('0'+(i+1)).slice(-2)+'.jpg';
       apiPost({action:'uploadImage',itemId:data.id,fileName:fileName,base64Data:base64,mimeType:'image/jpeg'}, function(e2, imgData){
-        done++;
         // 第一張回來就更新卡片封面
         if (i===0 && imgData && imgData.thumb) {
           var newIdx = dataCache.items.findIndex(function(it){return it.id===data.id;});
           if (newIdx >= 0) dataCache.items[newIdx].coverThumb = imgData.thumb;
         }
-        showSaving('上傳圖片（'+done+'/'+total+'）⋯');
-        if (done === total) { hideSaving(); cb(null); }
+        next();
       });
+    }, function(done, total2){
+      showSaving('上傳圖片（'+done+'/'+total2+'）⋯');
+    }, function(){
+      hideSaving(); cb(null);
     });
   });
 }
@@ -2867,16 +2902,18 @@ function qf2DoCreate(){
     var photos=(QF2.photoCompressed||[]).slice();
     if(!photos.length){hideSaving();QF2.submitting=false;QF2.step=3;renderQuickFile2();return;}
     showSaving('上傳圖片（0/'+photos.length+'）⋯');
-    var done=0,ts=new Date().toISOString().replace(/[-:T]/g,'').slice(0,14);
-    photos.forEach(function(dataUrl,i){
+    var ts=new Date().toISOString().replace(/[-:T]/g,'').slice(0,14);
+    uploadPhotosLimited(photos, UPLOAD_CONCURRENCY, function(dataUrl,i,next){
       var base64=dataUrl.split(',')[1];
       var fn=itemId+'_'+ts+'_'+('0'+(i+1)).slice(-2)+'.jpg';
       apiPost({action:'uploadImage',itemId:itemId,fileName:fn,base64Data:base64,mimeType:'image/jpeg'},function(err,data){
-        done++;
         if(i===0&&!err&&data&&data.thumb){var cIdx=dataCache.items.findIndex(function(it){return it.id===itemId;});if(cIdx>=0)dataCache.items[cIdx].coverThumb=data.thumb;}
-        showSaving('上傳圖片（'+done+'/'+photos.length+'）⋯');
-        if(done===photos.length){hideSaving();QF2.submitting=false;QF2.step=3;renderQuickFile2();}
+        next();
       });
+    }, function(done2,total2){
+      showSaving('上傳圖片（'+done2+'/'+total2+'）⋯');
+    }, function(){
+      hideSaving();QF2.submitting=false;QF2.step=3;renderQuickFile2();
     });
   }
 
