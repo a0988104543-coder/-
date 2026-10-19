@@ -665,6 +665,23 @@ function renderBrowse(q, noReload) {
     return catOk && qOk;
   });
 
+  // 排序：最新建檔在前（本機剛建、尚無建檔時間者置頂；無建檔時間者以編號民國日期推算；同時間依流水號大到小）
+  function sortKey(i) {
+    if (i.createdAt) return i.createdAt;
+    if (i.isNew) return '9999';
+    var m = /^[A-Z]+-(\d{3})(\d{2})(\d{2})-/.exec(i.id || '');
+    return m ? (1911 + parseInt(m[1], 10)) + '-' + m[2] + '-' + m[3] + ' 00:00' : '';
+  }
+  function serialNo(i) {
+    var m = /-(\d+)$/.exec(i.id || '');
+    return m ? parseInt(m[1], 10) : 0;
+  }
+  filtered.sort(function(a, b) {
+    var ka = sortKey(a), kb = sortKey(b);
+    if (ka !== kb) return ka < kb ? 1 : -1;
+    return serialNo(b) - serialNo(a);
+  });
+
   var cats = ['all','CQ','ZH','YQ','ZX'];
   var catLabels = {all:'全部',CQ:'CQ 瓷器',ZH:'ZH 字畫',YQ:'YQ 玉器',ZX:'ZX 雜項'};
   var pendingCnt = items.filter(function(i){ return !i.name||i.name==='（未命名）'; }).length;
