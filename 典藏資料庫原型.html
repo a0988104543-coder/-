@@ -231,10 +231,15 @@ textarea.ffi{resize:vertical;min-height:72px;line-height:1.8;}
 .fp-door{text-align:center;font-size:8px;color:var(--ink3);letter-spacing:2px;padding:5px 0 2px;border-top:1px dashed rgba(26,22,18,0.15);margin-top:6px;}
 .lpanel{display:flex;align-items:center;gap:8px;background:var(--paper);border:1px solid rgba(139,69,19,0.22);border-radius:var(--r);padding:8px 12px;margin-bottom:8px;}
 .llbl{font-size:10px;letter-spacing:1px;color:var(--accent);flex-shrink:0;}
-.lbtns{display:flex;gap:4px;}
+.lbtns{display:flex;gap:4px;flex-wrap:wrap;}
+.fp-pzone{display:flex;flex-direction:column;gap:3px;margin-top:6px;padding-top:6px;border-top:1px dashed rgba(26,22,18,0.15);}
+.p-cell{width:54px;}
+.p-cell.hl{background:rgba(61,122,94,0.16);border-color:var(--jade);color:var(--jade);}
+.p-cell.hl.sel,.p-cell.hl:hover{background:rgba(139,69,19,0.22);border-color:var(--accent);color:var(--accent);}
+.fp-zh-hint{font-size:9px;color:var(--jade);text-align:center;padding-top:4px;}
 .lbtn{min-width:38px;padding:5px 8px;border:1px solid var(--border);border-radius:var(--r);background:var(--paper);font-family:'Noto Sans TC',sans-serif;font-size:11px;cursor:pointer;text-align:center;transition:all .12s;color:var(--ink2);}
 .lbtn.sel{background:var(--accent);border-color:var(--accent);color:#fff;}
-.lhint{font-size:10px;color:var(--ink3);}
+.lhint{font-size:10px;color:var(--ink3);white-space:nowrap;}
 .presult{display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(139,69,19,0.06);border:1px solid rgba(139,69,19,0.22);border-radius:var(--r);margin-bottom:8px;}
 .pcode{font-family:'Noto Serif TC',serif;font-size:16px;letter-spacing:3px;color:var(--accent);}
 .pdesc{font-size:11px;color:var(--ink3);}
@@ -1942,6 +1947,26 @@ function fStep1(){
     +'<div class="abar"><button class="bp" id="fNext1"'+(FS.cat?'':' disabled')+'>下一步</button></div>';
 }
 
+/* ===== P 書畫架（左側靠牆、L-01 與門口之間，P-01 最靠門口，每座 6 層）===== */
+var P_RACKS = 4;
+function layerCountOf(cab){ return (cab && cab.charAt(0)==='P') ? 6 : 4; }
+function layerList(cab){ var n=layerCountOf(cab), a=[]; for(var i=n;i>=1;i--) a.push(i); return a; }
+function pZoneHtml(selCab, cat){
+  var h='<div class="fp-pzone">';
+  for(var r=P_RACKS;r>=1;r--){
+    var code='P-0'+r, sel=selCab===code;
+    h+='<div class="fp-group"><div class="fp-group-label">'+code+'</div><div class="rack-cell p-cell'+(sel?' sel':'')+(cat==='ZH'?' hl':'')+'" data-cab="'+code+'">書畫</div></div>';
+  }
+  return h+'</div>';
+}
+function locDesc(loc){
+  var p=String(loc||'').split('-');
+  if(p[0]==='L') return '左側第'+parseInt(p[1])+'組・'+(CAB_NAMES[p[2]]||p[2])+'・第'+p[3]+'層';
+  if(p[0]==='P') return '書畫架第'+parseInt(p[1])+'架・第'+p[2]+'層';
+  if(p[0]==='R') return '右側第'+parseInt(p[1])+'架・第'+p[2]+'層';
+  return '';
+}
+
 function fpHtml(){
   var left='';
   for(var g=5;g>=1;g--){
@@ -1949,19 +1974,18 @@ function fpHtml(){
     var grid='<div class="fp-2x2">'+cells.map(function(c){var code='L-0'+g+'-'+c.p,sel=FS.selCab===code;return '<div class="cab-cell'+(sel?' sel':'')+'" data-cab="'+code+'">'+c.p+'</div>';}).join('')+'</div>';
     left+='<div class="fp-group"><div class="fp-group-label">L-0'+g+'</div>'+grid+'</div>';
   }
+  left+=pZoneHtml(FS.selCab, FS.cat);
   var right='';for(var r=5;r>=1;r--){var code='R-0'+r,sel=FS.selCab===code;right+='<div class="rack-cell'+(sel?' sel':'')+'" data-cab="'+code+'">'+code+'</div>';}
-  return '<div class="fp-outer"><div class="fp-orient"><span class="fp-orient-label">左側（L）</span><span class="fp-orient-label">右側（R）</span></div><div class="fp-room"><div class="fp-left">'+left+'</div><div class="fp-aisle"><div class="fp-aisle-label">走道</div></div><div class="fp-right">'+right+'</div></div><div class="fp-door">▲ 門口</div></div>';
+  return '<div class="fp-outer"><div class="fp-orient"><span class="fp-orient-label">左側（L／P）</span><span class="fp-orient-label">右側（R）</span></div><div class="fp-room"><div class="fp-left">'+left+'</div><div class="fp-aisle"><div class="fp-aisle-label">走道</div></div><div class="fp-right">'+right+'</div></div>'+(FS.cat==='ZH'?'<div class="fp-zh-hint">字畫建議放綠色的書畫架（P）</div>':'')+'<div class="fp-door">▲ 門口</div></div>';
 }
 
 function layerHtml(){
   if(!FS.selCab)return '';
-  return '<div class="lpanel"><div class="llbl">'+FS.selCab+'</div><div class="lbtns">'+[4,3,2,1].map(function(n){return '<button class="lbtn'+(FS.selLayer===n?' sel':'')+'" data-layer="'+n+'">第'+n+'層</button>';}).join('')+'</div><div class="lhint">1底　4頂</div></div>';
+  return '<div class="lpanel"><div class="llbl">'+FS.selCab+'</div><div class="lbtns">'+layerList(FS.selCab).map(function(n){return '<button class="lbtn'+(FS.selLayer===n?' sel':'')+'" data-layer="'+n+'">第'+n+'層</button>';}).join('')+'</div><div class="lhint">1底　'+layerCountOf(FS.selCab)+'頂</div></div>';
 }
 
 function posResultHtml(){
-  var p=FS.loc.split('-'),desc='';
-  if(FS.loc.startsWith('L'))desc='左側第'+parseInt(p[1])+'組・'+(CAB_NAMES[p[2]]||p[2])+'・第'+p[3]+'層';
-  else desc='右側第'+parseInt(p[1])+'架・第'+p[2]+'層';
+  var desc=locDesc(FS.loc);
   return '<div class="presult"><div><div style="font-size:9px;letter-spacing:1px;color:var(--ink3);margin-bottom:2px">已選位置</div><div class="pcode">'+FS.loc+'</div><div class="pdesc">'+desc+'</div></div><span class="pclr" id="fClearPos">重新選擇</span></div>';
 }
 
@@ -2824,7 +2848,7 @@ function showLocPickerModal() {
     if (curVal.startsWith('L') && parts.length === 4) {
       editLocState.selCab   = parts[0]+'-'+parts[1]+'-'+parts[2];
       editLocState.selLayer = parseInt(parts[3]);
-    } else if (curVal.startsWith('R') && parts.length === 3) {
+    } else if ((curVal.startsWith('R') || curVal.startsWith('P')) && parts.length === 3) {
       editLocState.selCab   = parts[0]+'-'+parts[1];
       editLocState.selLayer = parseInt(parts[2]);
     }
@@ -2854,9 +2878,7 @@ function renderLocPickerModal() {
   var resultHtml = '';
   if (savedCab && savedLayer) {
     var loc = savedCab + '-' + savedLayer;
-    var p = loc.split('-'), desc = '';
-    if (loc.startsWith('L')) desc = '左側第'+parseInt(p[1])+'組・'+(CAB_NAMES[p[2]]||p[2])+'・第'+p[3]+'層';
-    else desc = '右側第'+parseInt(p[1])+'架・第'+p[2]+'層';
+    var desc = locDesc(loc);
     resultHtml = '<div class="presult" style="margin-bottom:10px">'
       +'<div><div style="font-size:9px;letter-spacing:1px;color:var(--ink3);margin-bottom:2px">已選位置</div>'
       +'<div class="pcode">'+loc+'</div>'
@@ -2906,22 +2928,25 @@ function buildLocPickerHtml(selCab, selLayer) {
     }).join('')+'</div>';
     left += '<div class="fp-group"><div class="fp-group-label">L-0'+g+'</div>'+grid+'</div>';
   }
+  var editCat = currentItem ? currentItem.cat : '';
+  left += pZoneHtml(selCab, editCat);
   var right = '';
   for (var r = 5; r >= 1; r--) {
     var code2 = 'R-0'+r, sel2 = selCab===code2;
     right += '<div class="rack-cell'+(sel2?' sel':'')+'" data-cab="'+code2+'">'+code2+'</div>';
   }
-  var fp = '<div class="fp-outer"><div class="fp-orient"><span class="fp-orient-label">左側（L）</span><span class="fp-orient-label">右側（R）</span></div>'
+  var fp = '<div class="fp-outer"><div class="fp-orient"><span class="fp-orient-label">左側（L／P）</span><span class="fp-orient-label">右側（R）</span></div>'
     +'<div class="fp-room"><div class="fp-left">'+left+'</div><div class="fp-aisle"><div class="fp-aisle-label">走道</div></div><div class="fp-right">'+right+'</div></div>'
+    +(editCat==='ZH'?'<div class="fp-zh-hint">字畫建議放綠色的書畫架（P）</div>':'')
     +'<div class="fp-door">▲ 門口</div></div>';
 
   // 層號選擇
   var layer = '';
   if (selCab) {
     layer = '<div class="lpanel"><div class="llbl">'+selCab+'</div><div class="lbtns">'
-      +[4,3,2,1].map(function(n){
+      +layerList(selCab).map(function(n){
         return '<button class="lbtn'+(selLayer===n?' sel':'')+'" data-layer="'+n+'">第'+n+'層</button>';
-      }).join('')+'</div><div class="lhint">1底　4頂</div></div>';
+      }).join('')+'</div><div class="lhint">1底　'+layerCountOf(selCab)+'頂</div></div>';
   }
   return fp + layer;
 }
