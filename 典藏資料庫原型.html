@@ -282,6 +282,12 @@ textarea.ffi{resize:vertical;min-height:72px;line-height:1.8;}
 .qf-backdrop.open{display:block;}
 .qf-sheet{position:fixed;left:50%;bottom:0;transform:translateX(-50%) translateY(105%);width:min(680px,100%);max-height:94vh;background:var(--paper);border-radius:16px 16px 0 0;box-shadow:0 -4px 32px rgba(26,22,18,0.18);z-index:201;display:flex;flex-direction:column;transition:transform .32s cubic-bezier(.32,.72,0,1);overflow:hidden;}
 .qf-sheet.open{transform:translateX(-50%) translateY(0);}
+.paste-box{margin:8px 0 0;padding:10px 12px;min-height:20px;border:1.5px dashed var(--border);border-radius:var(--r);font-size:12px;color:transparent;caret-color:transparent;text-align:center;letter-spacing:1px;cursor:pointer;position:relative;-webkit-user-select:text;user-select:text;outline:none;overflow:hidden;max-height:44px;}
+.paste-box::before{content:'📋 點這裡貼上剪貼簿的照片';color:var(--ink3);position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;}
+.paste-box:focus{border-color:var(--accent2);background:rgba(196,125,62,0.06);}
+.paste-box:focus::before{content:'長按此處 → 選「貼上」';color:var(--accent2);}
+.paste-box.warn::before{content:attr(data-msg);color:#b03a2e;}
+.paste-box.qf-paste{margin:0 14px 10px;}
 .qf-sheet.drag-over{outline:3px dashed var(--accent2);outline-offset:-6px;}
 .qf-sheet.drag-over::after{content:'放開以加入照片';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:14px;letter-spacing:2px;color:var(--accent2);background:rgba(245,240,232,0.85);z-index:20;pointer-events:none;}
 .qf-handle{width:36px;height:4px;background:var(--border);border-radius:2px;margin:10px auto 2px;flex-shrink:0;}
@@ -2026,6 +2032,7 @@ function fStep3(){
   var dropZone = cnt === 0
     ? '<div class="uzn drag-zone" id="fUploadZone"><div style="font-size:24px;margin-bottom:6px">📷</div><div style="font-size:13px;color:var(--ink2)">點擊選取圖片或拍照</div><div style="font-size:11px;color:var(--ink3);margin-top:4px">或將圖片拖曳／貼上至此・建議每件至少 3 張</div></div>'
     : '<div class="uzn drag-zone" id="fUploadZone" style="padding:12px;border-style:dashed">'+thumbsHtml+'<div style="font-size:11px;color:var(--ink3);text-align:center">或將圖片拖曳至此新增</div></div>';
+  dropZone += PASTE_BOX_HTML;
 
   return '<div style="margin-bottom:14px"><div style="font-family:Noto Serif TC,serif;font-size:15px;font-weight:300;letter-spacing:2px;margin-bottom:4px">上傳圖片</div><div style="font-size:12px;color:var(--ink3)">建議：正面、側面、底款、細節特寫</div></div>'
     + dropZone
@@ -2404,6 +2411,7 @@ function bindFileClicks(){
 function fGo(n){FS.step=n;renderFile();}
 
 /* ========== QUICK FILE (手機快拍建檔) ========== */
+var PASTE_BOX_HTML = '<div class="paste-box" contenteditable="true" inputmode="none" data-paste-box></div>';
 
 var QFS = {
   photos:[], mainIdx:0,
@@ -2482,6 +2490,44 @@ document.addEventListener('paste', function(e){
   if (routeImageFiles(files)) e.preventDefault();
 });
 
+/* ── 手機貼上框 ──
+   iPhone/Android 只有在可編輯欄位上長按才會出現「貼上」，
+   所以每個上傳區下方放一個貼上框：
+   點一下 → 先試著直接讀剪貼簿（iPhone 會跳出「貼上」小按鈕）
+   讀不到 → 框已取得焦點，長按選「貼上」也可以 */
+document.addEventListener('click', function(e){
+  var box = e.target.closest && e.target.closest('[data-paste-box]');
+  if (!box || !navigator.clipboard || !navigator.clipboard.read) return;
+  navigator.clipboard.read().then(function(items){
+    var stamp = Date.now(), jobs = [];
+    items.forEach(function(item, i){
+      var t = item.types.filter(function(x){ return x.indexOf('image/')===0; })[0];
+      if (t) jobs.push(item.getType(t).then(function(blob){
+        var ext = (t.split('/')[1]||'png').replace('jpeg','jpg');
+        return new File([blob], 'paste_'+stamp+'_'+(i+1)+'.'+ext, {type:t});
+      }));
+    });
+    return Promise.all(jobs);
+  }).then(function(files){
+    if (files && files.length) { routeImageFiles(files); box.blur(); }
+    else flashPasteBox(box, '剪貼簿裡沒有圖片');
+  }).catch(function(){ /* 未授權或不支援：留著焦點讓使用者長按貼上 */ });
+});
+// 貼上框不接受打字或貼文字
+document.addEventListener('input', function(e){
+  if (e.target.matches && e.target.matches('[data-paste-box]')) e.target.innerHTML = '';
+});
+document.addEventListener('paste', function(e){
+  var box = e.target.closest && e.target.closest('[data-paste-box]');
+  if (!box) return;
+  if (!e.defaultPrevented) { e.preventDefault(); flashPasteBox(box, '剪貼簿裡沒有圖片'); }
+  else box.blur();
+});
+function flashPasteBox(box, msg){
+  box.setAttribute('data-msg', msg); box.classList.add('warn');
+  setTimeout(function(){ box.classList.remove('warn'); box.removeAttribute('data-msg'); }, 1800);
+}
+
 // 拖曳到快速建檔視窗
 (function(){
   var sheet = document.getElementById('qfSheet');
@@ -2541,7 +2587,7 @@ function renderQf(){
   QFS.photos.forEach(function(p,i){
     thumbHtml += '<div class="qf-thumb'+(i===QFS.mainIdx?' active':'')+'" data-qfi="'+i+'"><img src="'+p.dataUrl+'"></div>';
   });
-  thumbHtml += '<button class="qf-thumb-add" id="qfAddPhoto"><span>＋</span><span>再拍</span></button></div>';
+  thumbHtml += '<button class="qf-thumb-add" id="qfAddPhoto"><span>＋</span><span>再拍</span></button></div>'+PASTE_BOX_HTML.replace('paste-box','paste-box qf-paste');
 
   // 表單
   var condOpts = COND_OPTS[QFS.cat] || COND_OPTS.CQ;
@@ -3135,8 +3181,8 @@ function qf2Step2Html(){
     thumbsHtml+='<div id="qf2addmore" style="width:64px;height:64px;border-radius:4px;border:1.5px dashed var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;color:var(--ink3);font-size:18px;flex-shrink:0">＋<span style="font-size:8px;letter-spacing:1px">新增</span></div></div>';
   }
   var zoneHtml=cnt===0
-    ?'<div class="uzn" id="qf2zone" style="cursor:pointer"><div style="font-size:24px;margin-bottom:6px">🖼</div><div style="font-size:13px;color:var(--ink2)">從相簿選取照片</div><div style="font-size:11px;color:var(--ink3);margin-top:4px">可一次選多張・也可拖曳或 Ctrl+V 貼上</div></div>'
-    :'<div class="uzn" id="qf2zone" style="border-style:solid;border-color:var(--jade);padding:12px;cursor:default">'+thumbsHtml+'<div style="font-size:11px;color:var(--ink3);text-align:center;margin-top:4px">或將照片拖曳／貼上至此新增</div></div>';
+    ?'<div class="uzn" id="qf2zone" style="cursor:pointer"><div style="font-size:24px;margin-bottom:6px">🖼</div><div style="font-size:13px;color:var(--ink2)">從相簿選取照片</div><div style="font-size:11px;color:var(--ink3);margin-top:4px">可一次選多張・也可拖曳或 Ctrl+V 貼上</div></div>'+PASTE_BOX_HTML
+    :'<div class="uzn" id="qf2zone" style="border-style:solid;border-color:var(--jade);padding:12px;cursor:default">'+thumbsHtml+'<div style="font-size:11px;color:var(--ink3);text-align:center;margin-top:4px">或將照片拖曳／貼上至此新增</div></div>'+PASTE_BOX_HTML;
   return '<div class="cont">'
     +'<div style="margin-bottom:12px"><div style="font-family:Noto Serif TC,serif;font-size:15px;font-weight:300;letter-spacing:2px;margin-bottom:4px">上傳照片</div>'
     +'<div style="font-size:12px;color:var(--ink3)">分類：'+QF2.cat+' '+CATS[QF2.cat].n+'</div></div>'
