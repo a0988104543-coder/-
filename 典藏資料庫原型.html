@@ -282,6 +282,8 @@ textarea.ffi{resize:vertical;min-height:72px;line-height:1.8;}
 .qf-backdrop.open{display:block;}
 .qf-sheet{position:fixed;left:50%;bottom:0;transform:translateX(-50%) translateY(105%);width:min(680px,100%);max-height:94vh;background:var(--paper);border-radius:16px 16px 0 0;box-shadow:0 -4px 32px rgba(26,22,18,0.18);z-index:201;display:flex;flex-direction:column;transition:transform .32s cubic-bezier(.32,.72,0,1);overflow:hidden;}
 .qf-sheet.open{transform:translateX(-50%) translateY(0);}
+.qf-sheet.drag-over{outline:3px dashed var(--accent2);outline-offset:-6px;}
+.qf-sheet.drag-over::after{content:'放開以加入照片';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:14px;letter-spacing:2px;color:var(--accent2);background:rgba(245,240,232,0.85);z-index:20;pointer-events:none;}
 .qf-handle{width:36px;height:4px;background:var(--border);border-radius:2px;margin:10px auto 2px;flex-shrink:0;}
 .qf-header{padding:6px 16px 10px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
 .qf-title{font-family:'Noto Serif TC',serif;font-size:15px;font-weight:300;letter-spacing:3px;color:var(--ink);}
@@ -2022,7 +2024,7 @@ function fStep3(){
   }
 
   var dropZone = cnt === 0
-    ? '<div class="uzn drag-zone" id="fUploadZone"><div style="font-size:24px;margin-bottom:6px">📷</div><div style="font-size:13px;color:var(--ink2)">點擊選取圖片或拍照</div><div style="font-size:11px;color:var(--ink3);margin-top:4px">或將圖片拖曳至此・建議每件至少 3 張</div></div>'
+    ? '<div class="uzn drag-zone" id="fUploadZone"><div style="font-size:24px;margin-bottom:6px">📷</div><div style="font-size:13px;color:var(--ink2)">點擊選取圖片或拍照</div><div style="font-size:11px;color:var(--ink3);margin-top:4px">或將圖片拖曳／貼上至此・建議每件至少 3 張</div></div>'
     : '<div class="uzn drag-zone" id="fUploadZone" style="padding:12px;border-style:dashed">'+thumbsHtml+'<div style="font-size:11px;color:var(--ink3);text-align:center">或將圖片拖曳至此新增</div></div>';
 
   return '<div style="margin-bottom:14px"><div style="font-family:Noto Serif TC,serif;font-size:15px;font-weight:300;letter-spacing:2px;margin-bottom:4px">上傳圖片</div><div style="font-size:12px;color:var(--ink3)">建議：正面、側面、底款、細節特寫</div></div>'
@@ -2416,8 +2418,14 @@ document.getElementById('camFab').onclick = function(){
 
 document.getElementById('quickCamInput').onchange = function(){
   var files = Array.prototype.slice.call(this.files);
-  if (!files.length) return;
   this.value = '';
+  addQfsPhotos(files);
+};
+
+// 加入照片到快速建檔視窗（拍照／相簿／拖曳／貼上共用）
+function addQfsPhotos(files){
+  files = (files||[]).filter(function(f){ return f && f.type && f.type.indexOf('image/')===0; });
+  if (!files.length) return;
   // 壓縮並加入照片
   var pending = files.length;
   files.forEach(function(file){
@@ -2435,11 +2443,63 @@ document.getElementById('quickCamInput').onchange = function(){
         pending--;
         if(pending===0) openQfSheet();
       };
+      img.onerror = function(){ pending--; if(pending===0) openQfSheet(); };
       img.src = e.target.result;
     };
     reader.readAsDataURL(file);
   });
-};
+}
+
+/* ── 拖曳 & 貼上圖片 ──
+   依目前畫面決定圖片送去哪裡：
+   1. 快速建檔視窗開著 → 加進視窗
+   2. 建檔分頁・快速建檔的照片步驟 → 加進該步驟
+   3. 建檔分頁・完整建檔的上傳區 → 加進完整建檔
+   4. 其他（例如瀏覽頁） → 直接開啟快速建檔視窗 */
+function isShown(el){ return !!(el && el.offsetParent !== null); }
+function routeImageFiles(files){
+  if (!files.length) return false;
+  if (document.getElementById('qfSheet').classList.contains('open')) { addQfsPhotos(files); return true; }
+  if (isShown(document.getElementById('qf2zone')) && typeof addQF2Photos==='function') { addQF2Photos(files); return true; }
+  if (isShown(document.getElementById('fUploadZone')) && typeof addPhotos==='function') { addPhotos(files); return true; }
+  // 品項詳情編輯中的圖片區已有自己的拖曳處理，貼上時不搶
+  if (document.querySelector('.panel-img-section') && isShown(document.querySelector('.panel-img-section'))) return false;
+  addQfsPhotos(files); return true;
+}
+
+// 貼上：Ctrl/⌘+V，或手機長按輸入框「貼上」
+document.addEventListener('paste', function(e){
+  var items = (e.clipboardData && e.clipboardData.items) ? Array.prototype.slice.call(e.clipboardData.items) : [];
+  var stamp = Date.now();
+  var files = items.filter(function(it){ return it.kind==='file' && it.type.indexOf('image/')===0; })
+    .map(function(it, i){
+      var f = it.getAsFile(); if (!f) return null;
+      var ext = (f.type.split('/')[1]||'png').replace('jpeg','jpg');
+      // 剪貼簿圖片檔名都叫 image.png，改成不重複的名稱
+      try { return new File([f], 'paste_'+stamp+'_'+(i+1)+'.'+ext, {type:f.type}); } catch(_) { return f; }
+    }).filter(Boolean);
+  if (!files.length) return;           // 純文字貼上（例如 Gemini 回覆）照常
+  if (routeImageFiles(files)) e.preventDefault();
+});
+
+// 拖曳到快速建檔視窗
+(function(){
+  var sheet = document.getElementById('qfSheet');
+  function hasFiles(e){ return e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types||[], 'Files') >= 0; }
+  sheet.addEventListener('dragover', function(e){ if(!hasFiles(e))return; e.preventDefault(); sheet.classList.add('drag-over'); });
+  sheet.addEventListener('dragleave', function(e){ if(!sheet.contains(e.relatedTarget)) sheet.classList.remove('drag-over'); });
+  sheet.addEventListener('drop', function(e){
+    if(!hasFiles(e))return; e.preventDefault(); e.stopPropagation(); sheet.classList.remove('drag-over');
+    addQfsPhotos(Array.prototype.slice.call(e.dataTransfer.files));
+  });
+  // 拖到頁面其他沒有上傳區的地方：不讓瀏覽器直接開圖，改開快速建檔
+  document.addEventListener('dragover', function(e){ if(hasFiles(e)) e.preventDefault(); });
+  document.addEventListener('drop', function(e){
+    if(!hasFiles(e) || e.defaultPrevented) return;
+    e.preventDefault();
+    addQfsPhotos(Array.prototype.slice.call(e.dataTransfer.files));
+  });
+})();
 
 function openQfSheet(){
   document.getElementById('qfBackdrop').classList.add('open');
@@ -3075,8 +3135,8 @@ function qf2Step2Html(){
     thumbsHtml+='<div id="qf2addmore" style="width:64px;height:64px;border-radius:4px;border:1.5px dashed var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;color:var(--ink3);font-size:18px;flex-shrink:0">＋<span style="font-size:8px;letter-spacing:1px">新增</span></div></div>';
   }
   var zoneHtml=cnt===0
-    ?'<div class="uzn" id="qf2zone" style="cursor:pointer"><div style="font-size:24px;margin-bottom:6px">🖼</div><div style="font-size:13px;color:var(--ink2)">從相簿選取照片</div><div style="font-size:11px;color:var(--ink3);margin-top:4px">可一次選多張・建議正面、細節、底款</div></div>'
-    :'<div class="uzn" id="qf2zone" style="border-style:solid;border-color:var(--jade);padding:12px;cursor:default">'+thumbsHtml+'<div style="font-size:11px;color:var(--ink3);text-align:center;margin-top:4px">或將照片拖曳至此新增</div></div>';
+    ?'<div class="uzn" id="qf2zone" style="cursor:pointer"><div style="font-size:24px;margin-bottom:6px">🖼</div><div style="font-size:13px;color:var(--ink2)">從相簿選取照片</div><div style="font-size:11px;color:var(--ink3);margin-top:4px">可一次選多張・也可拖曳或 Ctrl+V 貼上</div></div>'
+    :'<div class="uzn" id="qf2zone" style="border-style:solid;border-color:var(--jade);padding:12px;cursor:default">'+thumbsHtml+'<div style="font-size:11px;color:var(--ink3);text-align:center;margin-top:4px">或將照片拖曳／貼上至此新增</div></div>';
   return '<div class="cont">'
     +'<div style="margin-bottom:12px"><div style="font-family:Noto Serif TC,serif;font-size:15px;font-weight:300;letter-spacing:2px;margin-bottom:4px">上傳照片</div>'
     +'<div style="font-size:12px;color:var(--ink3)">分類：'+QF2.cat+' '+CATS[QF2.cat].n+'</div></div>'
