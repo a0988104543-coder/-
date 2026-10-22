@@ -432,17 +432,41 @@ var DEMO_MODE  = false; // 無 URL 時使用範例資料
 var dataCache    = { loaded: false, items: [] };
 var pendingDeepId = null;  // QR 掃碼 deep link 待開品項
 
-function apiGet(params, cb) {
-  var url = WEBAPP_URL + '?' + Object.keys(params).map(function(k){return k+'='+encodeURIComponent(params[k]);}).join('&');
-  fetch(url)
-    .then(function(r){ return r.json(); })
+// 解析 Apps Script 回應：偶爾 Google 會回錯誤網頁而不是 JSON，
+// 這時抓出網頁裡的錯誤訊息，方便判斷原因
+function parseApiResponse(r){
+  return r.text().then(function(t){
+    try { return JSON.parse(t); } catch(_) {}
+    var msg = '';
+    try {
+      var doc = new DOMParser().parseFromString(t, 'text/html');
+      var cand = doc.querySelector('.errorMessage, #errorMessage, .error, title');
+      msg = ((cand && cand.textContent) || doc.body.textContent || '').replace(/\s+/g,' ').trim().slice(0,160);
+    } catch(_) {}
+    if (/accounts\.google\.com|ServiceLogin|登入|Sign in/i.test(t)) msg = '需要登入 Google（請確認部署存取權為「任何人」）';
+    var err = new Error('Google 回傳錯誤頁'+(msg?'：'+msg:'')+'（HTTP '+r.status+'）');
+    err.htmlResponse = true;
+    throw err;
+  });
+}
+
+function apiGet(params, cb, _attempt) {
+  var attempt = _attempt || 0;
+  var url = WEBAPP_URL + '?' + Object.keys(params).map(function(k){return k+'='+encodeURIComponent(params[k]);}).join('&')
+          + '&_t=' + Date.now();   // 避免拿到快取的錯誤頁
+  fetch(url, { cache:'no-store' })
+    .then(parseApiResponse)
     .then(function(d){ cb(d.ok ? null : (d.error||'錯誤'), d); })
-    .catch(function(e){ cb(e.message||'網路錯誤', null); });
+    .catch(function(e){
+      // Apps Script 偶發錯誤：自動重試 2 次（1.5 秒、4 秒後）
+      if (attempt < 2) { setTimeout(function(){ apiGet(params, cb, attempt+1); }, attempt===0 ? 1500 : 4000); return; }
+      cb(e.message||'網路錯誤', null);
+    });
 }
 
 function apiPost(payload, cb) {
   fetch(WEBAPP_URL, { method:'POST', body: JSON.stringify(payload) })
-    .then(function(r){ return r.json(); })
+    .then(parseApiResponse)
     .then(function(d){ cb(d.ok ? null : (d.error||'錯誤'), d); })
     .catch(function(e){ cb(e.message||'網路錯誤', null); });
 }
