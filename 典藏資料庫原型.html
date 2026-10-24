@@ -238,6 +238,8 @@ textarea.ffi{resize:vertical;min-height:72px;line-height:1.8;}
 .lbtns{display:flex;gap:4px;flex-wrap:wrap;}
 .fp-pzone{display:flex;flex-direction:column;gap:3px;margin-top:6px;padding-top:6px;border-top:1px dashed rgba(26,22,18,0.15);}
 .p-cell{width:54px;}
+/* R 架直向：高度 = 一組 L 櫃（2×20px + 2px 間距），改 .cab-cell 高度時需同步 */
+.r-cell{width:28px;height:42px;}
 .p-cell.hl{background:rgba(61,122,94,0.16);border-color:var(--jade);color:var(--jade);}
 .p-cell.hl.sel,.p-cell.hl:hover{background:rgba(139,69,19,0.22);border-color:var(--accent);color:var(--accent);}
 .fp-zh-hint{font-size:9px;color:var(--jade);text-align:center;padding-top:4px;}
@@ -2066,7 +2068,7 @@ function fpHtml(){
     left+='<div class="fp-group"><div class="fp-group-label">L-0'+g+'</div>'+grid+'</div>';
   }
   left+=pZoneHtml(FS.selCab, FS.cat);
-  var right='';for(var r=5;r>=1;r--){var code='R-0'+r,sel=FS.selCab===code;right+='<div class="rack-cell'+(sel?' sel':'')+'" data-cab="'+code+'">'+code+'</div>';}
+  var right='';for(var r=5;r>=0;r--){var code='R-0'+r,sel=FS.selCab===code;right+='<div class="rack-cell r-cell'+(sel?' sel':'')+'" data-cab="'+code+'">'+code+'</div>';}
   return '<div class="fp-outer"><div class="fp-orient"><span class="fp-orient-label">左側（L／P）</span><span class="fp-orient-label">右側（R）</span></div><div class="fp-room"><div class="fp-left">'+left+'</div><div class="fp-aisle"><div class="fp-aisle-label">走道</div></div><div class="fp-right">'+right+'</div></div>'+(FS.cat==='ZH'?'<div class="fp-zh-hint">字畫建議放綠色的書畫架（P）</div>':'')+'<div class="fp-door">▲ 門口</div></div>';
 }
 
@@ -3123,9 +3125,9 @@ function buildLocPickerHtml(selCab, selLayer) {
   var editCat = currentItem ? currentItem.cat : '';
   left += pZoneHtml(selCab, editCat);
   var right = '';
-  for (var r = 5; r >= 1; r--) {
+  for (var r = 5; r >= 0; r--) {
     var code2 = 'R-0'+r, sel2 = selCab===code2;
-    right += '<div class="rack-cell'+(sel2?' sel':'')+'" data-cab="'+code2+'">'+code2+'</div>';
+    right += '<div class="rack-cell r-cell'+(sel2?' sel':'')+'" data-cab="'+code2+'">'+code2+'</div>';
   }
   var fp = '<div class="fp-outer"><div class="fp-orient"><span class="fp-orient-label">左側（L／P）</span><span class="fp-orient-label">右側（R）</span></div>'
     +'<div class="fp-room"><div class="fp-left">'+left+'</div><div class="fp-aisle"><div class="fp-aisle-label">走道</div></div><div class="fp-right">'+right+'</div></div>'
