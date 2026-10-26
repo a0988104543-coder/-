@@ -107,6 +107,9 @@ mark{background:rgba(196,125,62,0.28);color:var(--ink);border-radius:2px;padding
 .pick-chip.st-on.sold{background:#a32d2d;border-color:#a32d2d;}
 .pick-chip:disabled{opacity:.5;cursor:default;}
 .pick-hint{font-size:11px;color:var(--accent);padding:0 16px 8px;}
+.pick-chip.sub-add{border-style:dashed;color:var(--ink3);}
+.sub-input{width:100%;padding:11px 12px;font-size:16px;border:1.5px solid var(--border);border-radius:10px;background:#fff;font-family:'Noto Sans TC',sans-serif;}
+.sub-err{font-size:12px;color:#a32d2d;padding:0 20px;min-height:16px;}
 .bsheet-scrim{position:fixed;inset:0;background:rgba(26,22,18,0.5);z-index:250;display:flex;align-items:flex-end;justify-content:center;}
 .bsheet{width:min(680px,100%);background:var(--paper);border-radius:14px 14px 0 0;padding:8px 0 calc(12px + env(safe-area-inset-bottom,0px));max-height:80vh;overflow-y:auto;}
 .bsheet-grab{width:36px;height:4px;border-radius:2px;background:var(--paper3);margin:0 auto 8px;}
@@ -636,6 +639,8 @@ function openBatchActions(){
   openBSheet('已選 '+ids.length+' 件', [
     {v:'add', ic:'➕', lbl:'加挑選標籤'},
     {v:'remove', ic:'➖', lbl:'移除挑選標籤'},
+    {v:'subadd', ic:'🏷', lbl:'加細分類'},
+    {v:'subremove', ic:'🏷', lbl:'移除細分類'},
     {v:'status', ic:'📦', lbl:'改存倉狀態'},
     {v:'csv', ic:'📄', lbl:'匯出 CSV'},
     {v:'print', ic:'🖨', lbl:'列印標籤'}
@@ -643,6 +648,7 @@ function openBatchActions(){
     if (v==='csv') { closeBSheet(); exportBatchCsv(); return; }
     if (v==='print') { closeBSheet(); printBatchLabels(); return; }
     if (v==='status') { pickBatchStatus(ids); return; }
+    if (v==='subadd' || v==='subremove') { pickBatchSub(ids, v==='subadd'?'add':'remove'); return; }
     pickBatchTag(ids, v);
   });
 }
@@ -719,9 +725,208 @@ function setItemStatus(item, st){
   if (st==='已售') confirmSold([item.id], go); else go();
 }
 
+/* ========== 細分類 ========== */
+// 清單來自後端「細分類設定」工作表（list 時一併回傳），在 App 內新增／改名／刪除；品項存在第 19 欄
+var SUBCATS = {CQ:[],ZH:[],YQ:[],ZX:[]};
+var SUBS_READY = false;     // 後端已支援細分類（list 有回傳 subcats）
+var SUB_NONE = '__none__';  // 篩選「未分類」
+var currentSub = '', currentSubCat = ''; // 細分類篩選只在 currentCat===currentSubCat 時生效
+var DEMO_SUBCATS = [{cat:'CQ',name:'龍泉窯系'},{cat:'CQ',name:'磁州窯系'},{cat:'CQ',name:'元瓷'},{cat:'YQ',name:'翡翠'},{cat:'YQ',name:'明清玉'},{cat:'YQ',name:'高古玉'},{cat:'ZX',name:'木'},{cat:'ZX',name:'銅'},{cat:'ZX',name:'石'}];
+function setSubcats(list){
+  SUBCATS = {CQ:[],ZH:[],YQ:[],ZX:[]};
+  (list||[]).forEach(function(x){ if (SUBCATS[x.cat] && SUBCATS[x.cat].indexOf(x.name)<0) SUBCATS[x.cat].push(x.name); });
+}
+function itemSubs(i){ return i.subs || []; }
+function subActive(){ return !!currentSub && currentSubCat===currentCat; }
+function subOk(i){
+  if (!subActive()) return true;
+  var s = itemSubs(i);
+  return currentSub===SUB_NONE ? !s.length : s.indexOf(currentSub)>=0;
+}
+function sortSubs(cat, arr){
+  var order = SUBCATS[cat] || [];
+  return arr.slice().sort(function(a,b){ var ia=order.indexOf(a), ib=order.indexOf(b); return (ia<0?99:ia)-(ib<0?99:ib); });
+}
+function subsNotReady(){
+  if (SUBS_READY) return false;
+  alert('後端（Apps Script）尚未更新到支援細分類的版本，這次操作沒有儲存。');
+  return true;
+}
+function panelOpen(){ var o=document.getElementById('overlay'); return o && o.classList.contains('open'); }
+function afterSubChange(){ renderBrowse(curQuery(), true); if (panelOpen() && currentItem) renderPanel(); }
+function subCount(cat, s){ return (dataCache.items||[]).filter(function(i){ return i.cat===cat && itemSubs(i).indexOf(s)>=0; }).length; }
+
+function openSubFilter(){
+  var cat = currentCat, q = curQuery();
+  var base = (dataCache.items||[]).filter(function(i){ return i.cat===cat && statusOk(i, q) && (!currentTag || itemTags(i).indexOf(currentTag)>=0); });
+  var cur = subActive() ? currentSub : '';
+  var rows = [{v:'', ic:'◻︎', lbl:'全部'+CATS[cat].n, n:base.length, ck:!cur}]
+    .concat(SUBCATS[cat].map(function(x){
+      return {v:x, ic:'🏷', lbl:x, n:base.filter(function(i){ return itemSubs(i).indexOf(x)>=0; }).length, ck:cur===x};
+    }))
+    .concat([{v:SUB_NONE, ic:'∅', lbl:'未分類', n:base.filter(function(i){ return !itemSubs(i).length; }).length, ck:cur===SUB_NONE},
+             {v:'__add__', ic:'＋', lbl:'新增細分類'}])
+    .concat(SUBCATS[cat].length ? [{v:'__manage__', ic:'⚙', lbl:'管理細分類（改名／刪除）'}] : []);
+  openBSheet('依「'+CATS[cat].n+'」細分類篩選', rows, function(v){
+    if (v==='__add__') { addSubcat(cat); return; }
+    if (v==='__manage__') { openSubManage(cat); return; }
+    currentSub = v; currentSubCat = v ? cat : '';
+    closeBSheet(); renderBrowse(curQuery(), true);
+  });
+}
+
+// 輸入名稱的底部視窗；onOk(name, showErr) 由呼叫端處理儲存，失敗時用 showErr 顯示錯誤、視窗保持開啟
+function openSubNameInput(title, initial, cat, onOk){
+  showBSheetHtml('<div class="bsheet-scrim" id="bsScrim"><div class="bsheet" role="dialog"><div class="bsheet-grab"></div>'
+    + '<div class="bsheet-title">'+escHtml(title)+'</div>'
+    + '<div class="bsheet-msg"><input id="subNameInput" class="sub-input" maxlength="20" value="'+escHtml(initial||'')+'" placeholder="例如：龍泉窯系"></div>'
+    + '<div class="sub-err" id="subNameErr"></div>'
+    + '<div class="bsheet-actions"><button id="bsCancel">取消</button><button class="go" id="bsYes">確定</button></div></div></div>');
+  var inp = document.getElementById('subNameInput'), composing = false;
+  function showErr(m){ var e=document.getElementById('subNameErr'); if (e) e.textContent = m; }
+  function go(){
+    var v = inp.value.trim();
+    if (!v) return showErr('名稱不可空白');
+    if (/[,，、]/.test(v)) return showErr('名稱不可包含逗號或頓號');
+    if (v===(initial||'')) { closeBSheet(); return; }
+    if (SUBCATS[cat].indexOf(v)>=0) return showErr('「'+v+'」已存在');
+    showErr('');
+    onOk(v, showErr);
+  }
+  inp.addEventListener('compositionstart', function(){ composing=true; });
+  inp.addEventListener('compositionend', function(){ composing=false; });
+  inp.addEventListener('keydown', function(e){ if (e.key==='Enter' && !composing) go(); });
+  document.getElementById('bsYes').onclick = go;
+  setTimeout(function(){ inp.focus(); }, 50);
+}
+
+// 改名／刪除後，同步本機已載入的品項（後端已同步改 Sheets）
+function replaceSubLocal(cat, oldN, newN){
+  (dataCache.items||[]).forEach(function(i){
+    if (i.cat!==cat) return;
+    var x = itemSubs(i).slice(), p = x.indexOf(oldN);
+    if (p<0) return;
+    if (newN && x.indexOf(newN)<0) x[p]=newN; else x.splice(p,1);
+    setItemFields(i.id, {subs:x});
+  });
+}
+
+function addSubcat(cat){
+  openSubNameInput('新增「'+CATS[cat].n+'」細分類', '', cat, function(name, showErr){
+    if (DEMO_MODE || !WEBAPP_URL) { SUBCATS[cat].push(name); closeBSheet(); flashMsg('已新增「'+name+'」'); afterSubChange(); return; }
+    if (subsNotReady()) return;
+    showSaving('儲存中⋯');
+    apiPost({action:'subcatAdd', cat:cat, name:name}, function(err, data){
+      hideSaving();
+      if (err) { showErr(err); return; }
+      setSubcats(data.subcats); closeBSheet(); flashMsg('已新增「'+name+'」'); afterSubChange();
+    });
+  });
+}
+
+function openSubManage(cat){
+  if (!SUBCATS[cat].length) { closeBSheet(); return; }
+  openBSheet('管理「'+CATS[cat].n+'」細分類（點選要修改的項目）', SUBCATS[cat].map(function(x){
+    return {v:x, ic:'🏷', lbl:x, n:subCount(cat, x)+' 件'};
+  }), function(x){
+    openBSheet('「'+x+'」（'+subCount(cat, x)+' 件）', [
+      {v:'rename', ic:'✎', lbl:'改名'},
+      {v:'delete', ic:'🗑', lbl:'刪除', danger:true}
+    ], function(act){ if (act==='rename') renameSubcat(cat, x); else confirmDeleteSubcat(cat, x); });
+  });
+}
+
+function renameSubcat(cat, oldN){
+  openSubNameInput('「'+oldN+'」改名為', oldN, cat, function(newN, showErr){
+    function done(changed){
+      replaceSubLocal(cat, oldN, newN);
+      if (currentSubCat===cat && currentSub===oldN) currentSub = newN;
+      closeBSheet(); flashMsg('已改名為「'+newN+'」，'+changed+' 件品項一併更新'); afterSubChange();
+    }
+    if (DEMO_MODE || !WEBAPP_URL) { SUBCATS[cat][SUBCATS[cat].indexOf(oldN)] = newN; done(subCount(cat, oldN)); return; }
+    if (subsNotReady()) return;
+    showSaving('改名中⋯');
+    apiPost({action:'subcatRename', cat:cat, oldName:oldN, newName:newN}, function(err, data){
+      hideSaving();
+      if (err) { showErr(err); return; }
+      setSubcats(data.subcats); done(data.changed||0);
+    });
+  });
+}
+
+function confirmDeleteSubcat(cat, x){
+  var n = subCount(cat, x);
+  showBSheetHtml('<div class="bsheet-scrim" id="bsScrim"><div class="bsheet" role="alertdialog"><div class="bsheet-grab"></div>'
+    + '<div class="bsheet-title">確認刪除細分類</div>'
+    + '<div class="bsheet-msg">「<b>'+escHtml(x)+'</b>」目前有 <b>'+n+'</b> 件品項使用。刪除後，這些品項會移除這個細分類（沒有其他細分類的會變回未分類）。此動作無法復原。</div>'
+    + '<div class="bsheet-actions"><button id="bsCancel">取消</button><button class="go" id="bsYes">確定刪除</button></div></div></div>');
+  document.getElementById('bsYes').onclick = function(){
+    function done(changed){
+      replaceSubLocal(cat, x, '');
+      if (currentSubCat===cat && currentSub===x) { currentSub=''; currentSubCat=''; }
+      closeBSheet(); flashMsg('已刪除「'+x+'」，'+changed+' 件品項已移除此細分類'); afterSubChange();
+    }
+    if (DEMO_MODE || !WEBAPP_URL) { SUBCATS[cat].splice(SUBCATS[cat].indexOf(x),1); done(n); return; }
+    if (subsNotReady()) return;
+    closeBSheet(); showSaving('刪除中⋯');
+    apiPost({action:'subcatDelete', cat:cat, name:x}, function(err, data){
+      hideSaving();
+      if (err) { alert('刪除失敗：'+err); return; }
+      setSubcats(data.subcats); done(data.changed||0);
+    });
+  };
+}
+
+// 詳細頁：單件切換細分類
+function toggleItemSub(item, sub){
+  var has = itemSubs(item).indexOf(sub)>=0;
+  function apply(subs){
+    setItemFields(item.id, {subs:sortSubs(item.cat, subs)});
+    refreshAfterPick();
+    flashMsg((has?'已移除「':'已加上「')+sub+'」');
+  }
+  if (DEMO_MODE || !WEBAPP_URL) {
+    var t=itemSubs(item).slice(); if(has) t.splice(t.indexOf(sub),1); else t.push(sub);
+    apply(t); return;
+  }
+  if (subsNotReady()) return;
+  document.querySelectorAll('.pick-chip').forEach(function(b){ b.disabled=true; });
+  showSaving('儲存中⋯');
+  apiPost({action:'update', id:item.id, item: has ? {removeSub:sub} : {addSub:sub}}, function(err, data){
+    if (err || !data || !data.subs) { hideSaving(); document.querySelectorAll('.pick-chip').forEach(function(b){ b.disabled=false; }); alert('儲存失敗：'+(err||'後端未回傳細分類')); return; }
+    apply(data.subs);
+  });
+}
+
+// 批次：加／移除細分類（細分類依分類而不同，所以只能同一分類一起設定）
+function pickBatchSub(ids, mode){
+  var cats = [];
+  ids.forEach(function(id){ var it=findItem(id); if (it && cats.indexOf(it.cat)<0) cats.push(it.cat); });
+  if (cats.length!==1) { closeBSheet(); alert('細分類依分類而不同，請只勾選同一個分類的品項。\n目前勾選了：'+cats.map(function(c){return CATS[c].n;}).join('、')); return; }
+  var cat = cats[0];
+  if (!SUBCATS[cat].length) { closeBSheet(); alert('「'+CATS[cat].n+'」還沒有細分類，請先在瀏覽頁點分類按鈕新增。'); return; }
+  if (!(DEMO_MODE || !WEBAPP_URL) && subsNotReady()) { closeBSheet(); return; }
+  openBSheet((mode==='add'?'加上哪個細分類？':'移除哪個細分類？')+'（'+ids.length+' 件）', SUBCATS[cat].map(function(x){
+    var has = ids.filter(function(id){ var it=findItem(id); return it && itemSubs(it).indexOf(x)>=0; }).length;
+    return {v:x, ic:'🏷', lbl:x, n:'已有 '+has+' 件'};
+  }), function(sub){
+    closeBSheet();
+    runBatchUpdate(ids,
+      function(){ return mode==='add' ? {addSub:sub} : {removeSub:sub}; },
+      function(id, data){
+        var t;
+        if (data && data.subs) t = data.subs;
+        else { t = itemSubs(findItem(id)||{}).slice(); var p=t.indexOf(sub);
+          if (mode==='add' && p<0) t.push(sub); if (mode==='remove' && p>=0) t.splice(p,1); }
+        setItemFields(id, {subs:sortSubs(cat, t)});
+      },
+      function(n){ return mode==='add' ? '已為 '+n+' 件加上「'+sub+'」' : '已從 '+n+' 件移除「'+sub+'」'; });
+  });
+}
+
 function loadItems(force, cb) {
   if (!WEBAPP_URL || DEMO_MODE) {
-    if (!dataCache.loaded) { dataCache.items = DEMO_ITEMS.slice(); dataCache.loaded = true; }
+    if (!dataCache.loaded) { dataCache.items = DEMO_ITEMS.slice(); dataCache.loaded = true; setSubcats(DEMO_SUBCATS); SUBS_READY = true; }
     cb(null);
     return;
   }
@@ -729,6 +934,8 @@ function loadItems(force, cb) {
   apiGet({ action:'list', cat:'all' }, function(err, data) {
     if (err) { cb(err); return; }
     dataCache.items = data.items || [];
+    SUBS_READY = Array.isArray(data.subcats);
+    setSubcats(data.subcats);
     dataCache.loaded = true;
     items = dataCache.items;
     cb(null);
@@ -942,8 +1149,8 @@ function renderBrowse(q, noReload) {
 
   var filtered = items.filter(function(i) {
     var catOk = currentCat==='all' || (currentCat==='PENDING' ? (!i.name||i.name==='（未命名）') : i.cat===currentCat);
-    if (!catOk || !statusOk(i, q) || (currentTag && itemTags(i).indexOf(currentTag)<0)) return false;
-    var qOk = !q || [i.name,i.dynasty,i.kiln,i.craft,i.loc,i.id,i.desc,i.note].some(function(v){
+    if (!catOk || !statusOk(i, q) || (currentTag && itemTags(i).indexOf(currentTag)<0) || !subOk(i)) return false;
+    var qOk = !q || [i.name,i.dynasty,i.kiln,i.craft,i.loc,i.id,i.desc,i.note,itemSubs(i).join(' ')].some(function(v){
       return v && v.toLowerCase().indexOf(q.toLowerCase())>=0;
     });
     return catOk && qOk;
@@ -971,7 +1178,8 @@ function renderBrowse(q, noReload) {
   var pendingCnt = items.filter(function(i){ return !i.name||i.name==='（未命名）'; }).length;
   var catBar = '<div class="catbar">'+cats.map(function(c){
     var cnt = items.filter(function(i){return (c==='all'||i.cat===c) && statusOk(i, '');}).length;
-    return '<button class="catf'+(currentCat===c?' on':'')+'" data-cat="'+c+'">'+catLabels[c]+' <span style="opacity:.5">'+cnt+'</span></button>';
+    var subLbl = (currentCat===c && CATS[c]) ? (subActive() ? '・'+escHtml(currentSub===SUB_NONE?'未分類':currentSub) : '')+' ▾' : '';
+    return '<button class="catf'+(currentCat===c?' on':'')+'" data-cat="'+c+'">'+catLabels[c]+subLbl+' <span style="opacity:.5">'+cnt+'</span></button>';
   }).join('')+(pendingCnt>0?'<button class="catf'+(currentCat==='PENDING'?' on':'')+'" data-cat="PENDING">⏳待補 <span style="opacity:.5">'+pendingCnt+'</span></button>':'')
   +'<span class="catsep"></span>'
   +'<button class="catf drop'+(currentTag?' set':'')+'" id="tagFilterBtn">'+(currentTag?tagIcon(currentTag)+' '+escHtml(currentTag):'📌 挑選')+' ▾</button>'
@@ -1033,7 +1241,9 @@ function renderBrowse(q, noReload) {
   }());
   document.querySelectorAll('.catf[data-cat]').forEach(function(el){
     el.addEventListener('click',function(){
-      currentCat=this.getAttribute('data-cat');
+      var c=this.getAttribute('data-cat');
+      if (c===currentCat && CATS[c]) { openSubFilter(); return; } // 再點一次已選中的分類：打開細分類選單
+      currentCat=c; currentSub=''; currentSubCat=''; // 換分類時清除細分類篩選
       renderBrowse(document.getElementById('searchInput')?document.getElementById('searchInput').value:'', true);
     });
   });
@@ -1420,10 +1630,15 @@ function renderPanel(){
 
   // 挑選標籤＋存倉狀態（編輯模式時隱藏，避免與欄位編輯混在一起）
   var dTags = itemTags(d), dSt = itemStatus(d);
+  var dSubs = itemSubs(d), dSubList = (SUBCATS[d.cat]||[]).concat(dSubs.filter(function(x){ return (SUBCATS[d.cat]||[]).indexOf(x)<0; })); // 清單外的舊值也顯示，才能移除
   var pickHtml = editMode ? '' : '<div class="pick-wrap">'
     + '<div class="pick-sec">挑選<span>可多選，點一下切換</span></div>'
     + '<div class="pick-chips">'+TAG_DEFS.map(function(t){ var on=dTags.indexOf(t.k)>=0;
         return '<button class="pick-chip'+(on?' tag-on':'')+'" data-tag="'+t.k+'" aria-pressed="'+on+'">'+t.ic+' '+t.k+'</button>'; }).join('')+'</div>'
+    + '<div class="pick-sec">細分類<span>可多選，點一下切換</span></div>'
+    + '<div class="pick-chips">'+dSubList.map(function(x){ var on=dSubs.indexOf(x)>=0;
+        return '<button class="pick-chip'+(on?' tag-on':'')+'" data-sub="'+escHtml(x)+'" aria-pressed="'+on+'">'+escHtml(x)+'</button>'; }).join('')
+      + '<button class="pick-chip sub-add" id="subAddBtn">＋ 新增</button></div>'
     + '<div class="pick-sec">存倉狀態<span>單選</span></div>'
     + '<div class="pick-chips">'+STATUS_OPTS.map(function(st){ var on=dSt===st;
         return '<button class="pick-chip'+(on?' st-on':'')+(st==='已售'?' sold':'')+'" data-st="'+st+'" aria-pressed="'+on+'">'+st+'</button>'; }).join('')+'</div>'
@@ -1443,6 +1658,8 @@ function renderPanel(){
   document.getElementById('closeBtn').onclick = closeDetail;
   document.querySelectorAll('.pick-chip[data-tag]').forEach(function(b){ b.onclick=function(){ toggleItemTag(d, b.getAttribute('data-tag')); }; });
   document.querySelectorAll('.pick-chip[data-st]').forEach(function(b){ b.onclick=function(){ setItemStatus(d, b.getAttribute('data-st')); }; });
+  document.querySelectorAll('.pick-chip[data-sub]').forEach(function(b){ b.onclick=function(){ toggleItemSub(d, b.getAttribute('data-sub')); }; });
+  var subAddBtn=document.getElementById('subAddBtn'); if (subAddBtn) subAddBtn.onclick=function(){ addSubcat(d.cat); };
 
   // Populate image strip
   updateImgStrip();
