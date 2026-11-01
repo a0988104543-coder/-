@@ -250,6 +250,21 @@ textarea.ffi{resize:vertical;min-height:72px;line-height:1.8;}
 .r-cell{width:28px;height:42px;}
 .p-cell.hl{background:rgba(61,122,94,0.16);border-color:var(--jade);color:var(--jade);}
 .p-cell.hl.sel,.p-cell.hl:hover{background:rgba(139,69,19,0.22);border-color:var(--accent);color:var(--accent);}
+.fp-svg{display:block;width:100%;height:auto;max-width:380px;margin:0 auto;font-family:'Noto Sans TC',sans-serif;font-size:10px;user-select:none;-webkit-user-select:none;}
+.fp-floor{fill:#e8e0d0;}
+.fp-wall{fill:none;stroke:#5c534c;stroke-width:3;}
+.fp-door{fill:none;stroke:var(--ink3);stroke-dasharray:3 2;}
+.fp-lbl{fill:var(--ink3);font-size:9px;}
+.fpc{cursor:pointer;}
+.fpc rect{fill:var(--paper);stroke:rgba(26,22,18,0.3);}
+.fpc text{fill:var(--ink2);}
+.fpc.w rect{fill:rgba(176,112,58,0.22);stroke:#b0703a;}
+.fpc.w text{fill:#b0703a;}
+.fpc.hl rect{fill:rgba(61,122,94,0.18);stroke:var(--jade);}
+.fpc.hl text{fill:var(--jade);}
+.fpc.sel rect,.fpc:hover rect{fill:rgba(139,69,19,0.3);stroke:var(--accent);}
+.fpc.sel text,.fpc:hover text{fill:var(--accent);}
+.locpick-layer{position:sticky;bottom:-14px;background:var(--paper);padding:8px 0 6px;margin-bottom:-14px;}
 .fp-zh-hint{font-size:9px;color:var(--jade);text-align:center;padding-top:4px;}
 .lbtn{min-width:38px;padding:5px 8px;border:1px solid var(--border);border-radius:var(--r);background:var(--paper);font-family:'Noto Sans TC',sans-serif;font-size:11px;cursor:pointer;text-align:center;transition:all .12s;color:var(--ink2);}
 .lbtn.sel{background:var(--accent);border-color:var(--accent);color:#fff;}
@@ -2348,42 +2363,69 @@ function fStep1(){
 var P_RACKS = 4;
 function layerCountOf(cab){ return (cab && cab.charAt(0)==='P') ? 6 : 4; }
 function layerList(cab){ var n=layerCountOf(cab), a=[]; for(var i=n;i>=1;i--) a.push(i); return a; }
-function pZoneHtml(selCab, cat){
-  var h='<div class="fp-pzone">';
-  for(var r=P_RACKS;r>=1;r--){
-    var code='P-0'+r, sel=selCab===code;
-    h+='<div class="fp-group"><div class="fp-group-label">'+code+'</div><div class="rack-cell p-cell'+(sel?' sel':'')+(cat==='ZH'?' hl':'')+'" data-cab="'+code+'">書畫</div></div>';
+// 平面圖（2026-11-01 依地下室實際形狀重畫；形狀與相對位置照 CAD，長度為了好點有壓縮）
+// 代碼：L-組-櫃-層、P-架-層（書畫架）、R-架-層、d-櫃-層（抽屜櫃）、W-右／W-底／W-左（牆掛，整面牆一個位置，無層）
+function isWallLoc(cab){ return !!cab && cab.charAt(0)==='W'; }
+function locOf(cab, layer){ return isWallLoc(cab) ? cab : cab+'-'+layer; }
+function floorPlanHtml(selCab, cat){
+  var zh = cat==='ZH', s = '';
+  function cell(code, x, y, w, h, label, cls, lx, ly, anchor){
+    return '<g class="fpc'+(cls?' '+cls:'')+(selCab===code?' sel':'')+'" data-cab="'+code+'">'
+      +'<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="1"/>'
+      +'<text x="'+(lx!==undefined?lx:x+w/2)+'" y="'+(ly!==undefined?ly:y+h/2+3.5)+'" text-anchor="'+(anchor||'middle')+'">'+label+'</text></g>';
   }
-  return h+'</div>';
+  // 地板與牆（門在左牆最下面）
+  s += '<path class="fp-floor" d="M10 10H350V660H122V470H90V412H10Z"/>';
+  s += '<path class="fp-wall" d="M122 648V660H350V10H10V412H90V470H122V610"/>';
+  s += '<path class="fp-door" d="M122 610H160A38 38 0 0 1 122 648"/>';
+  s += '<text class="fp-lbl" x="116" y="633" text-anchor="end">門口 ▶</text>';
+  s += '<text class="fp-lbl" x="205" y="190" style="opacity:.6">走</text><text class="fp-lbl" x="205" y="204" style="opacity:.6">道</text>';
+  // 左側 L 櫃（2×2）與右側 R 架，同一高度對齊
+  for (var i=0; i<5; i++) {
+    var g = 5-i, y = 22+i*60;
+    s += '<text class="fp-lbl" x="16" y="'+(y+26)+'">L-0'+g+'</text>';
+    [['C',0,0],['A',1,0],['D',0,1],['B',1,1]].forEach(function(c){ s += cell('L-0'+g+'-'+c[0], 46+c[1]*46, y+c[2]*24, 44, 22, c[0]); });
+    s += cell('R-0'+g, 294, y, 52, 46, 'R-0'+g);
+  }
+  // 書畫架 P（左側內縮轉角處，P-01 最靠門口）
+  for (var j=0; j<P_RACKS; j++) { var r = P_RACKS-j; s += cell('P-0'+r, 14, 322+j*22, 74, 20, 'P-0'+r+' 書畫', zh?'hl':''); }
+  s += cell('R-00', 294, 400, 52, 56, 'R-00');
+  // 下段：抽屜櫃 d-01、三面牆掛
+  s += cell('d-01', 128, 500, 40, 56, 'd-01');
+  s += cell('W-左', 106, 476, 14, 128, 'W-左', 'w'+(zh?' hl':''), 100, 544, 'end');
+  s += cell('W-右', 348, 470, 14, 190, 'W-右', 'w'+(zh?' hl':''), 342, 568, 'end');
+  s += cell('W-底', 122, 662, 240, 14, 'W-底', 'w'+(zh?' hl':''), 242, 690);
+  return '<div class="fp-outer"><svg class="fp-svg" viewBox="0 0 366 696">'+s+'</svg>'
+    +(zh?'<div class="fp-zh-hint">字畫建議放綠色的書畫架（P）或牆掛（W）</div>':'')+'</div>';
+}
+function layerPanelHtml(selCab, selLayer){
+  if (!selCab || isWallLoc(selCab)) return '';
+  return '<div class="lpanel"><div class="llbl">'+selCab+'</div><div class="lbtns">'+layerList(selCab).map(function(n){
+    return '<button class="lbtn'+(selLayer===n?' sel':'')+'" data-layer="'+n+'">第'+n+'層</button>';
+  }).join('')+'</div><div class="lhint">1底　'+layerCountOf(selCab)+'頂</div></div>';
+}
+function scrollToLayerPanel(){ // 建檔頁：點了櫃位後自動捲到層號
+  var lp = document.querySelector('#fileCont .lpanel, #qfLocPicker .lpanel');
+  if (lp) lp.scrollIntoView({block:'nearest', behavior:'smooth'});
 }
 function locDesc(loc){
   var p=String(loc||'').split('-');
   if(p[0]==='L') return '左側第'+parseInt(p[1])+'組・'+(CAB_NAMES[p[2]]||p[2])+'・第'+p[3]+'層';
   if(p[0]==='P') return '書畫架第'+parseInt(p[1])+'架・第'+p[2]+'層';
   if(p[0]==='R') return '右側第'+parseInt(p[1])+'架・第'+p[2]+'層';
+  if(p[0]==='d') return '抽屜櫃第'+parseInt(p[1])+'櫃・第'+p[2]+'層';
+  if(p[0]==='W') return '牆掛・'+({'右':'右牆','底':'底牆','左':'左牆'}[p[1]]||p[1]);
   return '';
 }
 
-function fpHtml(){
-  var left='';
-  for(var g=5;g>=1;g--){
-    var cells=[{p:'C'},{p:'A'},{p:'D'},{p:'B'}];
-    var grid='<div class="fp-2x2">'+cells.map(function(c){var code='L-0'+g+'-'+c.p,sel=FS.selCab===code;return '<div class="cab-cell'+(sel?' sel':'')+'" data-cab="'+code+'">'+c.p+'</div>';}).join('')+'</div>';
-    left+='<div class="fp-group"><div class="fp-group-label">L-0'+g+'</div>'+grid+'</div>';
-  }
-  left+=pZoneHtml(FS.selCab, FS.cat);
-  var right='';for(var r=5;r>=0;r--){var code='R-0'+r,sel=FS.selCab===code;right+='<div class="rack-cell r-cell'+(sel?' sel':'')+'" data-cab="'+code+'">'+code+'</div>';}
-  return '<div class="fp-outer"><div class="fp-orient"><span class="fp-orient-label">左側（L／P）</span><span class="fp-orient-label">右側（R）</span></div><div class="fp-room"><div class="fp-left">'+left+'</div><div class="fp-aisle"><div class="fp-aisle-label">走道</div></div><div class="fp-right">'+right+'</div></div>'+(FS.cat==='ZH'?'<div class="fp-zh-hint">字畫建議放綠色的書畫架（P）</div>':'')+'<div class="fp-door">▲ 門口</div></div>';
-}
+function fpHtml(){ return floorPlanHtml(FS.selCab, FS.cat); }
 
-function layerHtml(){
-  if(!FS.selCab)return '';
-  return '<div class="lpanel"><div class="llbl">'+FS.selCab+'</div><div class="lbtns">'+layerList(FS.selCab).map(function(n){return '<button class="lbtn'+(FS.selLayer===n?' sel':'')+'" data-layer="'+n+'">第'+n+'層</button>';}).join('')+'</div><div class="lhint">1底　'+layerCountOf(FS.selCab)+'頂</div></div>';
-}
+function layerHtml(){ return layerPanelHtml(FS.selCab, FS.selLayer); }
 
-function posResultHtml(){
-  var desc=locDesc(FS.loc);
-  return '<div class="presult"><div><div style="font-size:9px;letter-spacing:1px;color:var(--ink3);margin-bottom:2px">已選位置</div><div class="pcode">'+FS.loc+'</div><div class="pdesc">'+desc+'</div></div><span class="pclr" id="fClearPos">重新選擇</span></div>';
+function posResultHtml(loc, clearId){
+  loc = loc===undefined ? FS.loc : loc;
+  var desc=locDesc(loc);
+  return '<div class="presult"><div><div style="font-size:9px;letter-spacing:1px;color:var(--ink3);margin-bottom:2px">已選位置</div><div class="pcode">'+escHtml(loc)+'</div><div class="pdesc">'+desc+'</div></div><span class="pclr" id="'+(clearId||'fClearPos')+'">重新選擇</span></div>';
 }
 
 function fStep2(){
@@ -2791,10 +2833,10 @@ function bindFileClicks(){
     renderFile();
   });
   document.querySelectorAll('[data-cab]').forEach(function(el){
-    el.addEventListener('click',function(){FS.selCab=this.getAttribute('data-cab');FS.selLayer=null;FS.loc='';renderFile();});
+    el.addEventListener('click',function(){var c=this.getAttribute('data-cab');FS.selCab=c;FS.selLayer=null;FS.loc=isWallLoc(c)?c:'';renderFile();if(!FS.loc)scrollToLayerPanel();});
   });
   document.querySelectorAll('[data-layer]').forEach(function(el){
-    el.addEventListener('click',function(){FS.selLayer=parseInt(this.getAttribute('data-layer'));FS.loc=FS.selCab+'-'+FS.selLayer;renderFile();});
+    el.addEventListener('click',function(){FS.selLayer=parseInt(this.getAttribute('data-layer'));FS.loc=locOf(FS.selCab,FS.selLayer);renderFile();});
   });
 }
 
@@ -3001,9 +3043,8 @@ function renderQf(){
     + '</div></div>';
 
   if (QFS.locOpen) {
-    locHtml += '<div class="qf-locpicker" id="qfLocPicker">' + fpHtml() + layerHtml() + '</div>';
-    if (QFS.loc) locHtml = '<div class="qf-sec">存放位置</div>' + posResultHtml()
-      + '<div style="text-align:right;margin-bottom:8px"><span style="font-size:11px;color:var(--ink3);cursor:pointer;text-decoration:underline" id="qfClearPos">重新選擇</span></div>';
+    locHtml += '<div class="qf-locpicker" id="qfLocPicker">' + floorPlanHtml(QFS.selCab, QFS.cat) + layerPanelHtml(QFS.selCab, QFS.selLayer) + '</div>';
+    if (QFS.loc) locHtml = '<div class="qf-sec">存放位置</div>' + posResultHtml(QFS.loc, 'qfClearPos');
   }
 
   // 基本資料
@@ -3081,10 +3122,10 @@ function bindQf(){
 
   // 平面圖點選（reuse existing cab/layer cells）
   document.querySelectorAll('[data-cab]').forEach(function(el){
-    el.onclick=function(){QFS.selCab=this.getAttribute('data-cab');QFS.selLayer=null;QFS.loc='';_qfSaveFields();renderQf();};
+    el.onclick=function(){var c=this.getAttribute('data-cab');QFS.selCab=c;QFS.selLayer=null;QFS.loc=isWallLoc(c)?c:'';_qfSaveFields();renderQf();if(!QFS.loc)scrollToLayerPanel();};
   });
   document.querySelectorAll('[data-layer]').forEach(function(el){
-    el.onclick=function(){QFS.selLayer=parseInt(this.getAttribute('data-layer'));QFS.loc=QFS.selCab+'-'+QFS.selLayer;_qfSaveFields();renderQf();};
+    el.onclick=function(){QFS.selLayer=parseInt(this.getAttribute('data-layer'));QFS.loc=locOf(QFS.selCab,QFS.selLayer);_qfSaveFields();renderQf();};
   });
 
   // AI 辨識
@@ -3347,9 +3388,11 @@ function showLocPickerModal(opts) {
     if (curVal.startsWith('L') && parts.length === 4) {
       editLocState.selCab   = parts[0]+'-'+parts[1]+'-'+parts[2];
       editLocState.selLayer = parseInt(parts[3]);
-    } else if ((curVal.startsWith('R') || curVal.startsWith('P')) && parts.length === 3) {
+    } else if ((curVal.startsWith('R') || curVal.startsWith('P') || curVal.startsWith('d')) && parts.length === 3) {
       editLocState.selCab   = parts[0]+'-'+parts[1];
       editLocState.selLayer = parseInt(parts[2]);
+    } else if (isWallLoc(curVal) && parts.length === 2) {
+      editLocState.selCab   = curVal;
     }
   }
 
@@ -3369,14 +3412,15 @@ function renderLocPickerModal() {
   // 使用暫存狀態渲染平面圖
   var savedCab   = editLocState.selCab;
   var savedLayer = editLocState.selLayer;
+  var done = !!savedCab && (!!savedLayer || isWallLoc(savedCab));
 
   // 暫時借用 FS 的選擇函數需要的格式：用局部變數重建 HTML
   var locPickHtml = buildLocPickerHtml(savedCab, savedLayer);
 
   // 已選結果列
   var resultHtml = '';
-  if (savedCab && savedLayer) {
-    var loc = savedCab + '-' + savedLayer;
+  if (done) {
+    var loc = locOf(savedCab, savedLayer);
     var desc = locDesc(loc);
     resultHtml = '<div class="presult" style="margin-bottom:10px">'
       +'<div><div style="font-size:9px;letter-spacing:1px;color:var(--ink3);margin-bottom:2px">已選位置</div>'
@@ -3391,8 +3435,7 @@ function renderLocPickerModal() {
     +'<div class="locpick-header"><div class="locpick-title">'+escHtml(locPickCtx && locPickCtx.title ? locPickCtx.title : '選擇存放位置')+'</div><button class="locpick-close" id="locPickClose">✕</button></div>'
     +'<div class="locpick-body">'
     + resultHtml
-    + ((!savedCab || !savedLayer) ? locPickHtml : '')
-    + (savedCab && !savedLayer ? '<div style="font-size:11px;color:var(--ink3);text-align:center;margin-top:4px">↑ 請再選層號</div>' : '')
+    + (!done ? locPickHtml : '')
     +'</div></div>';
 
   document.getElementById('locPickClose').onclick = function(){ closeLocPickerModal(false); };
@@ -3404,6 +3447,7 @@ function renderLocPickerModal() {
     el.addEventListener('click', function(){
       editLocState.selCab   = this.getAttribute('data-cab');
       editLocState.selLayer = null;
+      if (isWallLoc(editLocState.selCab)) { closeLocPickerModal(true); return; } // 牆掛沒有層，點了直接選定
       renderLocPickerModal();
     });
   });
@@ -3417,44 +3461,16 @@ function renderLocPickerModal() {
 }
 
 function buildLocPickerHtml(selCab, selLayer) {
-  // 仿照 fpHtml() + layerHtml()，但使用 editLocState 而非 FS
-  var left = '';
-  for (var g = 5; g >= 1; g--) {
-    var cells = [{p:'C'},{p:'A'},{p:'D'},{p:'B'}];
-    var grid = '<div class="fp-2x2">'+cells.map(function(c){
-      var code = 'L-0'+g+'-'+c.p, sel = selCab===code;
-      return '<div class="cab-cell'+(sel?' sel':'')+'" data-cab="'+code+'">'+c.p+'</div>';
-    }).join('')+'</div>';
-    left += '<div class="fp-group"><div class="fp-group-label">L-0'+g+'</div>'+grid+'</div>';
-  }
   var editCat = locPickCtx ? locPickCtx.cat : (currentItem ? currentItem.cat : '');
-  left += pZoneHtml(selCab, editCat);
-  var right = '';
-  for (var r = 5; r >= 0; r--) {
-    var code2 = 'R-0'+r, sel2 = selCab===code2;
-    right += '<div class="rack-cell r-cell'+(sel2?' sel':'')+'" data-cab="'+code2+'">'+code2+'</div>';
-  }
-  var fp = '<div class="fp-outer"><div class="fp-orient"><span class="fp-orient-label">左側（L／P）</span><span class="fp-orient-label">右側（R）</span></div>'
-    +'<div class="fp-room"><div class="fp-left">'+left+'</div><div class="fp-aisle"><div class="fp-aisle-label">走道</div></div><div class="fp-right">'+right+'</div></div>'
-    +(editCat==='ZH'?'<div class="fp-zh-hint">字畫建議放綠色的書畫架（P）</div>':'')
-    +'<div class="fp-door">▲ 門口</div></div>';
-
-  // 層號選擇
-  var layer = '';
-  if (selCab) {
-    layer = '<div class="lpanel"><div class="llbl">'+selCab+'</div><div class="lbtns">'
-      +layerList(selCab).map(function(n){
-        return '<button class="lbtn'+(selLayer===n?' sel':'')+'" data-layer="'+n+'">第'+n+'層</button>';
-      }).join('')+'</div><div class="lhint">1底　'+layerCountOf(selCab)+'頂</div></div>';
-  }
-  return fp + layer;
+  var layer = layerPanelHtml(selCab, selLayer);
+  return floorPlanHtml(selCab, editCat) + (layer ? '<div class="locpick-layer">'+layer+'</div>' : '');
 }
 
 function closeLocPickerModal(confirm) {
   var modal = document.getElementById('locPickModal');
   var ctx = locPickCtx, loc = null;
-  if (confirm && editLocState.selCab && editLocState.selLayer) {
-    loc = editLocState.selCab + '-' + editLocState.selLayer;
+  if (confirm && editLocState.selCab && (editLocState.selLayer || isWallLoc(editLocState.selCab))) {
+    loc = locOf(editLocState.selCab, editLocState.selLayer);
     var inp = ctx ? null : document.getElementById('editLocInput');
     if (inp) { inp.value = loc; }
   }
