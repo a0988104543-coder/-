@@ -47,7 +47,11 @@ body{background:var(--paper);color:var(--ink);font-size:13px;font-family:'Noto S
 .card-img{width:100%;aspect-ratio:3/4;display:flex;align-items:center;justify-content:center;font-size:44px;overflow:hidden;position:relative;}
 .card-img img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;}
 .card-body{padding:8px 10px;border-top:1px solid var(--border);}
-.card-id{font-size:9px;color:var(--ink3);letter-spacing:1px;margin-bottom:2px;}
+.card-id{font-size:9px;color:var(--ink3);letter-spacing:1px;margin-bottom:2px;display:flex;justify-content:space-between;gap:4px;}
+.card-id>span:first-child{flex-shrink:0;}
+.card-loc{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:0;color:var(--accent);}
+.card-loc.none{color:var(--ink3);}
+.card-loc.out{color:#8b4513;opacity:.75;}
 .card-name{font-family:'Noto Serif TC',serif;font-size:13px;color:var(--ink);margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .card-meta{font-size:11px;color:var(--ink3);display:flex;justify-content:space-between;align-items:center;}
 .sdot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:3px;vertical-align:middle;}
@@ -256,13 +260,17 @@ textarea.ffi{resize:vertical;min-height:72px;line-height:1.8;}
 .fp-door{fill:none;stroke:var(--ink3);stroke-dasharray:3 2;}
 .fp-lbl{fill:var(--ink3);font-size:9px;}
 .fpc{cursor:pointer;}
-.fpc rect{fill:var(--paper);stroke:rgba(26,22,18,0.3);}
+.fpc rect,.fpc path{fill:var(--paper);stroke:rgba(26,22,18,0.3);}
 .fpc text{fill:var(--ink2);}
-.fpc.w rect{fill:rgba(176,112,58,0.22);stroke:#b0703a;}
+.fpc.w rect,.fpc.w path{fill:rgba(176,112,58,0.22);stroke:#b0703a;}
 .fpc.w text{fill:#b0703a;}
-.fpc.hl rect{fill:rgba(61,122,94,0.18);stroke:var(--jade);}
+.fpc.hl rect,.fpc.hl path{fill:rgba(61,122,94,0.18);stroke:var(--jade);}
 .fpc.hl text{fill:var(--jade);}
-.fpc.sel rect,.fpc:hover rect{fill:rgba(139,69,19,0.3);stroke:var(--accent);}
+.fpc.empty{opacity:.4;}
+.locf-btns{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;}
+.locf-btns button{padding:6px 12px;font-size:12px;border:1px solid var(--border);border-radius:20px;background:var(--paper);color:var(--ink2);cursor:pointer;font-family:'Noto Sans TC',sans-serif;}
+.locf-btns button.on{background:var(--ink);border-color:var(--ink);color:var(--paper);}
+.fpc.sel rect,.fpc:hover rect,.fpc.sel path,.fpc:hover path{fill:rgba(139,69,19,0.3);stroke:var(--accent);}
 .fpc.sel text,.fpc:hover text{fill:var(--accent);}
 .locpick-layer{position:sticky;bottom:-14px;background:var(--paper);padding:8px 0 6px;margin-bottom:-14px;}
 .fp-zh-hint{font-size:9px;color:var(--jade);text-align:center;padding-top:4px;}
@@ -548,6 +556,19 @@ var TAG_DEFS = [
 var STATUS_OPTS = ['在倉','離倉','已售'];
 var currentTag = '';        // '' = 不限
 var currentStatus = '未售'; // 未售（在倉＋離倉，預設）／在倉／離倉／已售／全部
+var currentLoc = ''; // 位置篩選：''＝不限／櫃位代碼（L-02-A、R-03、W-左…）／LOC_NONE 未定位／LOC_OTHER 代碼不在平面圖上
+var LOC_NONE = '__NONE__', LOC_OTHER = '__OTHER__';
+// 位置代碼 → 櫃位（不含層）；格式不在平面圖上的回傳 null
+function cabOfLoc(loc){
+  var v = String(loc||'').trim(), m;
+  if ((m = /^(L-0[1-5]-[ABCD])-\d+$/.exec(v)) || (m = /^(P-0[1-4])-\d+$/.exec(v)) || (m = /^(R-0[0-5])-\d+$/.exec(v)) || (m = /^(d-01)-\d+$/.exec(v))) return m[1];
+  if (/^W-(右|底|左)$/.test(v)) return v;
+  return null;
+}
+function locKind(i){ var v=String(i.loc||'').trim(); return !v ? LOC_NONE : (cabOfLoc(v) || LOC_OTHER); }
+function locOk(i){ return !currentLoc || locKind(i)===currentLoc; }
+function locLayerNo(i){ var m=/-(\d+)$/.exec(String(i.loc||'').trim()); return m ? parseInt(m[1],10) : 0; }
+function locFilterLabel(){ return currentLoc===LOC_NONE ? '未定位' : currentLoc===LOC_OTHER ? '其他' : currentLoc; }
 function itemTags(i){ return i.tags || []; }
 function itemStatus(i){ return i.status || '在倉'; }
 function tagIcon(k){ for (var n=0;n<TAG_DEFS.length;n++) if (TAG_DEFS[n].k===k) return TAG_DEFS[n].ic; return '🔖'; }
@@ -610,6 +631,34 @@ function openTagFilter(){
     return {v:t.k, ic:t.ic, lbl:t.k, n:base.filter(function(i){return itemTags(i).indexOf(t.k)>=0;}).length, ck:currentTag===t.k};
   }));
   openBSheet('依挑選標籤篩選', rows, function(v){ currentTag=v; closeBSheet(); renderBrowse(curQuery(), true); });
+}
+// 卡片編號右側：在倉顯示位置，離倉／已售顯示狀態
+function cardLocHtml(item, st, q){
+  if (st==='離倉') return '<span class="card-loc out">🚚 離倉</span>';
+  if (st==='已售') return '<span class="card-loc none">✔︎ 已售</span>';
+  var v = String(item.loc||'').trim();
+  return v ? '<span class="card-loc">📍 '+hlText(v, q)+'</span>' : '<span class="card-loc none">📍 未定位</span>';
+}
+// 依位置篩選：平面圖標件數（件數照其他篩選算），點一格只看那一格
+function openLocFilter(){
+  var q = curQuery(), counts = {}, nNone = 0, nOther = 0, total = 0;
+  (dataCache.items||[]).forEach(function(i){
+    var catOk = currentCat==='all' || (currentCat==='PENDING' ? (!i.name||i.name==='（未命名）') : i.cat===currentCat);
+    if (!catOk || !statusOk(i, q) || (currentTag && itemTags(i).indexOf(currentTag)<0) || !subOk(i)) return;
+    if (q && ![i.name,i.dynasty,i.kiln,i.craft,i.loc,i.id,i.desc,i.note,itemSubs(i).join(' ')].some(function(v){ return v && v.toLowerCase().indexOf(q.toLowerCase())>=0; })) return;
+    var k = locKind(i); total++;
+    if (k===LOC_NONE) nNone++; else if (k===LOC_OTHER) nOther++; else counts[k] = (counts[k]||0)+1;
+  });
+  var extra = '<div class="locf-btns">'
+    + '<button data-locf=""'+(!currentLoc?' class="on"':'')+'>不限</button>'
+    + '<button data-locf="'+LOC_NONE+'"'+(currentLoc===LOC_NONE?' class="on"':'')+'>未定位 ('+nNone+')</button>'
+    + (nOther ? '<button data-locf="'+LOC_OTHER+'"'+(currentLoc===LOC_OTHER?' class="on"':'')+'>其他 ('+nOther+')</button>' : '')
+    + '</div>';
+  showLocPickerModal({
+    title: '依位置篩選（共 '+total+' 件）', cat: '', pickCab: true, counts: counts, extraHtml: extra,
+    selCab: (currentLoc && currentLoc!==LOC_NONE && currentLoc!==LOC_OTHER) ? currentLoc : null,
+    onDone: function(v){ currentLoc = v; renderBrowse(curQuery(), true); }
+  });
 }
 function openStatusFilter(){
   var base = (dataCache.items||[]).filter(function(i){ return !currentTag || itemTags(i).indexOf(currentTag)>=0; });
@@ -1206,7 +1255,7 @@ function renderBrowse(q, noReload) {
 
   var filtered = items.filter(function(i) {
     var catOk = currentCat==='all' || (currentCat==='PENDING' ? (!i.name||i.name==='（未命名）') : i.cat===currentCat);
-    if (!catOk || !statusOk(i, q) || (currentTag && itemTags(i).indexOf(currentTag)<0) || !subOk(i)) return false;
+    if (!catOk || !statusOk(i, q) || (currentTag && itemTags(i).indexOf(currentTag)<0) || !subOk(i) || !locOk(i)) return false;
     var qOk = !q || [i.name,i.dynasty,i.kiln,i.craft,i.loc,i.id,i.desc,i.note,itemSubs(i).join(' ')].some(function(v){
       return v && v.toLowerCase().indexOf(q.toLowerCase())>=0;
     });
@@ -1224,7 +1273,9 @@ function renderBrowse(q, noReload) {
     var m = /-(\d+)$/.exec(i.id || '');
     return m ? parseInt(m[1], 10) : 0;
   }
+  var byLayer = !!currentLoc && currentLoc!==LOC_NONE && currentLoc!==LOC_OTHER; // 選了某一格：由下往上依層號排
   filtered.sort(function(a, b) {
+    if (byLayer && locLayerNo(a)!==locLayerNo(b)) return locLayerNo(a)-locLayerNo(b);
     var ka = sortKey(a), kb = sortKey(b);
     if (ka !== kb) return ka < kb ? 1 : -1;
     return serialNo(b) - serialNo(a);
@@ -1241,6 +1292,7 @@ function renderBrowse(q, noReload) {
   +'<span class="catsep"></span>'
   +'<button class="catf drop'+(currentTag?' set':'')+'" id="tagFilterBtn">'+(currentTag?tagIcon(currentTag)+' '+escHtml(currentTag):'📌 挑選')+' ▾</button>'
   +'<button class="catf drop'+(currentStatus!=='未售'?' set':'')+'" id="statusFilterBtn">📦 '+(currentStatus==='未售'?'狀態':escHtml(currentStatus))+' ▾</button>'
+  +'<button class="catf drop'+(currentLoc?' set':'')+'" id="locFilterBtn">📍 '+(currentLoc?escHtml(locFilterLabel()):'位置')+' ▾</button>'
   +'</div>';
 
   var modeNote = (DEMO_MODE && !WEBAPP_URL)
@@ -1263,7 +1315,7 @@ function renderBrowse(q, noReload) {
           +(item.isNew?'<div class="new-badge">新建</div>':'')
           +(tg.length?'<div class="tag-badges">'+tg.map(tagIcon).join('')+'</div>':'')
           +'<div class="card-img" style="background:'+clr+'28">'+cardImgInner+band+'</div>'
-          +'<div class="card-body"><div class="card-id">'+item.id+'</div>'
+          +'<div class="card-body"><div class="card-id"><span>'+item.id+'</span>'+cardLocHtml(item, st, q)+'</div>'
           +'<div class="card-name">'+(!item.name||item.name==='（未命名）'?'<span style="color:var(--ink3);font-style:italic;font-size:12px">待補資料</span>':hlText(item.name,q))+'</div>'
           +'<div class="card-meta"><span>'+hlText(item.dynasty, q)+'</span>'
           +'<span><span class="sdot" style="background:'+(condColor[item.cond]||'#888')+'"></span>'+escHtml(item.cond)+'</span>'
@@ -1324,6 +1376,7 @@ function renderBrowse(q, noReload) {
   if(batchMoreEl && !batchMoreEl.disabled) batchMoreEl.addEventListener('click', openBatchActions);
   document.getElementById('tagFilterBtn').addEventListener('click', openTagFilter);
   document.getElementById('statusFilterBtn').addEventListener('click', openStatusFilter);
+  document.getElementById('locFilterBtn').addEventListener('click', openLocFilter);
   document.querySelectorAll('.card').forEach(function(el){
     el.addEventListener('click',function(){
       var id=this.getAttribute('data-id');
@@ -2367,12 +2420,16 @@ function layerList(cab){ var n=layerCountOf(cab), a=[]; for(var i=n;i>=1;i--) a.
 // 代碼：L-組-櫃-層、P-架-層（書畫架）、R-架-層、d-櫃-層（抽屜櫃）、W-右／W-底／W-左（牆掛，整面牆一個位置，無層）
 function isWallLoc(cab){ return !!cab && cab.charAt(0)==='W'; }
 function locOf(cab, layer){ return isWallLoc(cab) ? cab : cab+'-'+layer; }
-function floorPlanHtml(selCab, cat){
+function floorPlanHtml(selCab, cat, counts){ // counts：{櫃位代碼: 件數}，位置篩選時用
   var zh = cat==='ZH', s = '';
+  function cntOf(code){ var n = counts[code]||0; return n>99 ? '99+' : String(n); }
   function cell(code, x, y, w, h, label, cls, lx, ly, anchor){
+    if (counts && !counts[code]) cls = (cls?cls+' ':'')+'empty';
+    var tx = lx!==undefined ? lx : x+w/2, ty = ly!==undefined ? ly : y+h/2+3.5, txt;
+    if (counts && h>=40 && lx===undefined) txt = '<text x="'+tx+'" y="'+(ty-6)+'" text-anchor="middle">'+label+'</text><text x="'+tx+'" y="'+(ty+8)+'" text-anchor="middle" font-weight="500">'+cntOf(code)+'</text>';
+    else txt = '<text x="'+tx+'" y="'+ty+'" text-anchor="'+(anchor||'middle')+'">'+label+(counts?' '+cntOf(code):'')+'</text>';
     return '<g class="fpc'+(cls?' '+cls:'')+(selCab===code?' sel':'')+'" data-cab="'+code+'">'
-      +'<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="1"/>'
-      +'<text x="'+(lx!==undefined?lx:x+w/2)+'" y="'+(ly!==undefined?ly:y+h/2+3.5)+'" text-anchor="'+(anchor||'middle')+'">'+label+'</text></g>';
+      +'<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="1"/>'+txt+'</g>';
   }
   // 地板與牆（門在左牆最下面）
   s += '<path class="fp-floor" d="M10 10H350V660H122V470H90V412H10Z"/>';
@@ -2392,7 +2449,9 @@ function floorPlanHtml(selCab, cat){
   s += cell('R-00', 294, 400, 52, 56, 'R-00');
   // 下段：抽屜櫃 d-01、三面牆掛
   s += cell('d-01', 128, 500, 40, 56, 'd-01');
-  s += cell('W-左', 106, 476, 14, 128, 'W-左', 'w'+(zh?' hl':''), 100, 544, 'end');
+  // W-左：下段左牆＋往上延伸到 P-01 下方的內縮轉角（L 形）
+  s += '<g class="fpc w'+(zh?' hl':'')+(counts&&!counts['W-左']?' empty':'')+(selCab==='W-左'?' sel':'')+'" data-cab="W-左"><path d="M76 414H90V470H120V604H106V484H76Z"/>'
+    +'<text x="100" y="544" text-anchor="end">W-左'+(counts?' '+cntOf('W-左'):'')+'</text></g>';
   s += cell('W-右', 348, 470, 14, 190, 'W-右', 'w'+(zh?' hl':''), 342, 568, 'end');
   s += cell('W-底', 122, 662, 240, 14, 'W-底', 'w'+(zh?' hl':''), 242, 690);
   return '<div class="fp-outer"><svg class="fp-svg" viewBox="0 0 366 696">'+s+'</svg>'
@@ -3434,6 +3493,7 @@ function renderLocPickerModal() {
     '<div class="locpick-box">'
     +'<div class="locpick-header"><div class="locpick-title">'+escHtml(locPickCtx && locPickCtx.title ? locPickCtx.title : '選擇存放位置')+'</div><button class="locpick-close" id="locPickClose">✕</button></div>'
     +'<div class="locpick-body">'
+    + (locPickCtx && locPickCtx.extraHtml ? locPickCtx.extraHtml : '')
     + resultHtml
     + (!done ? locPickHtml : '')
     +'</div></div>';
@@ -3441,10 +3501,17 @@ function renderLocPickerModal() {
   document.getElementById('locPickClose').onclick = function(){ closeLocPickerModal(false); };
   var clearBtn = document.getElementById('locPickClear');
   if (clearBtn) clearBtn.onclick = function(){ editLocState={selCab:null,selLayer:null}; renderLocPickerModal(); };
+  modal.querySelectorAll('[data-locf]').forEach(function(el){
+    el.addEventListener('click', function(){ var v=this.getAttribute('data-locf'), cb=locPickCtx.onDone; closeLocPickerModal(false); cb(v); });
+  });
 
   // 綁定格位點擊
   modal.querySelectorAll('[data-cab]').forEach(function(el){
     el.addEventListener('click', function(){
+      if (locPickCtx && locPickCtx.pickCab) { // 位置篩選：點一格就選定，不選層
+        var pick = this.getAttribute('data-cab'), cb = locPickCtx.onDone;
+        closeLocPickerModal(false); cb(pick); return;
+      }
       editLocState.selCab   = this.getAttribute('data-cab');
       editLocState.selLayer = null;
       if (isWallLoc(editLocState.selCab)) { closeLocPickerModal(true); return; } // 牆掛沒有層，點了直接選定
@@ -3463,6 +3530,7 @@ function renderLocPickerModal() {
 function buildLocPickerHtml(selCab, selLayer) {
   var editCat = locPickCtx ? locPickCtx.cat : (currentItem ? currentItem.cat : '');
   var layer = layerPanelHtml(selCab, selLayer);
+  if (locPickCtx && locPickCtx.pickCab) return floorPlanHtml(locPickCtx.selCab, '', locPickCtx.counts);
   return floorPlanHtml(selCab, editCat) + (layer ? '<div class="locpick-layer">'+layer+'</div>' : '');
 }
 
