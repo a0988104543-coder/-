@@ -642,12 +642,14 @@ function openBatchActions(){
     {v:'subadd', ic:'🏷', lbl:'加細分類'},
     {v:'subremove', ic:'🏷', lbl:'移除細分類'},
     {v:'status', ic:'📦', lbl:'改存倉狀態'},
+    {v:'loc', ic:'📍', lbl:'指定放置位置'},
     {v:'csv', ic:'📄', lbl:'匯出 CSV'},
     {v:'print', ic:'🖨', lbl:'列印標籤'}
   ], function(v){
     if (v==='csv') { closeBSheet(); exportBatchCsv(); return; }
     if (v==='print') { closeBSheet(); printBatchLabels(); return; }
     if (v==='status') { pickBatchStatus(ids); return; }
+    if (v==='loc') { closeBSheet(); pickBatchLoc(ids); return; }
     if (v==='subadd' || v==='subremove') { pickBatchSub(ids, v==='subadd'?'add':'remove'); return; }
     pickBatchTag(ids, v);
   });
@@ -681,6 +683,40 @@ function pickBatchStatus(ids){
     }
     if (st==='已售') confirmSold(ids, go); else go();
   });
+}
+// 批次：指定放置位置（位置是倉庫格位，跟分類無關，可跨分類一起放）
+function pickBatchLoc(ids){
+  var cats = [];
+  ids.forEach(function(id){ var it=findItem(id); if (it && cats.indexOf(it.cat)<0) cats.push(it.cat); });
+  showLocPickerModal({
+    title: ids.length+' 件要放到哪裡？',
+    cat: cats.length===1 ? cats[0] : '',
+    onDone: function(loc){ confirmBatchLoc(ids, loc); }
+  });
+}
+function confirmBatchLoc(ids, loc){
+  var items = ids.map(function(id){ return findItem(id) || {id:id}; });
+  var over = items.filter(function(i){ return i.loc && i.loc!==loc; });
+  var same = items.filter(function(i){ return i.loc===loc; }).length;
+  var away = items.filter(function(i){ return i.cat && itemStatus(i)!=='在倉'; }).length;
+  var msg = '<b>'+ids.length+'</b> 件 → <b>'+escHtml(loc)+'</b>（'+escHtml(locDesc(loc))+'）';
+  if (over.length) {
+    msg += '<div style="margin-top:8px">其中 <b>'+over.length+'</b> 件原本有位置，會被覆蓋：</div>'
+      + '<div style="max-height:30vh;overflow-y:auto;font-size:12px;color:var(--ink2);margin-top:4px;padding:6px 10px;background:var(--paper2);border-radius:8px">'
+      + over.map(function(i){ return escHtml(i.name||i.id)+'　<span style="color:var(--ink3)">'+escHtml(i.loc)+'</span>'; }).join('<br>')
+      + '</div>';
+  }
+  if (same) msg += '<div style="margin-top:6px;font-size:12px;color:var(--ink3)">'+same+' 件本來就在這裡</div>';
+  if (away) msg += '<div style="margin-top:8px;font-size:12px;color:var(--ink2)">⚠ 其中 '+away+' 件目前是離倉或已售：離倉的位置代表回倉時要放回的地方，已售的位置只作紀錄。</div>';
+  showBSheetHtml('<div class="bsheet-scrim" id="bsScrim"><div class="bsheet" role="alertdialog"><div class="bsheet-grab"></div>'
+    + '<div class="bsheet-title">確認指定放置位置</div>'
+    + '<div class="bsheet-msg">'+msg+'</div>'
+    + '<div class="bsheet-actions"><button id="bsCancel">取消</button><button class="go" id="bsYes">確定寫入</button></div></div></div>');
+  document.getElementById('bsYes').onclick=function(){
+    closeBSheet();
+    runBatchUpdate(ids, function(){ return {loc:loc}; }, function(id){ setItemFields(id, {loc:loc}); },
+      function(n){ return '已將 '+n+' 件放到 '+loc; });
+  };
 }
 
 // 詳細頁：單件切換標籤／改狀態
@@ -989,6 +1025,7 @@ var FS = {step:1,cat:'',photo:false,photoFiles:[],photoPreviewUrls:[],photoCompr
 var fileSubMode = 'quick'; // 'quick' | 'full'
 var QF2 = {step:1,cat:'',photoFiles:[],photoPreviewUrls:[],photoCompressed:[],newId:'',submitting:false};
 var editLocState = {selCab:null, selLayer:null}; // 位置 Modal 暫存狀態
+var locPickCtx = null; // 批次呼叫時 = {title, cat, onDone}；編輯頁呼叫時為 null
 
 /* ========== INIT ========== */
 
@@ -1227,7 +1264,7 @@ function renderBrowse(q, noReload) {
     + '<input id="searchInput" type="search" enterkeyhint="search" placeholder="搜尋品名、朝代、位置…" value="'+escHtml(q)+'"></div>'
     + '<button class="tbatch" id="searchGoBtn">搜尋</button>'
     + '<div class="count">'+filtered.length+' 件</div>'
-    + '<button class="tbatch'+(batchMode?' on':'')+'" id="batchToggle">'+(batchMode?'✕':'🖨')+'</button>'
+    + '<button class="tbatch'+(batchMode?' on':'')+'" id="batchToggle">'+(batchMode?'✕':'☑ 選取')+'</button>'
     + '</div>'
     + grid;
 
@@ -3249,9 +3286,10 @@ function parseGeminiResult(text, cat) {
 
 /* ========== LOC PICKER MODAL ========== */
 
-function showLocPickerModal() {
-  // 讀取目前欄位值，嘗試預選
-  var curVal = (document.getElementById('editLocInput') || {}).value || '';
+function showLocPickerModal(opts) {
+  locPickCtx = opts || null;
+  // 讀取目前欄位值，嘗試預選（批次呼叫時不預選）
+  var curVal = locPickCtx ? '' : ((document.getElementById('editLocInput') || {}).value || '');
   editLocState = {selCab: null, selLayer: null};
   // 解析現有位置代碼 (如 L-01-A-2 或 R-03-1)
   if (curVal) {
@@ -3300,7 +3338,7 @@ function renderLocPickerModal() {
 
   modal.innerHTML =
     '<div class="locpick-box">'
-    +'<div class="locpick-header"><div class="locpick-title">選擇存放位置</div><button class="locpick-close" id="locPickClose">✕</button></div>'
+    +'<div class="locpick-header"><div class="locpick-title">'+escHtml(locPickCtx && locPickCtx.title ? locPickCtx.title : '選擇存放位置')+'</div><button class="locpick-close" id="locPickClose">✕</button></div>'
     +'<div class="locpick-body">'
     + resultHtml
     + ((!savedCab || !savedLayer) ? locPickHtml : '')
@@ -3339,7 +3377,7 @@ function buildLocPickerHtml(selCab, selLayer) {
     }).join('')+'</div>';
     left += '<div class="fp-group"><div class="fp-group-label">L-0'+g+'</div>'+grid+'</div>';
   }
-  var editCat = currentItem ? currentItem.cat : '';
+  var editCat = locPickCtx ? locPickCtx.cat : (currentItem ? currentItem.cat : '');
   left += pZoneHtml(selCab, editCat);
   var right = '';
   for (var r = 5; r >= 0; r--) {
@@ -3364,13 +3402,16 @@ function buildLocPickerHtml(selCab, selLayer) {
 
 function closeLocPickerModal(confirm) {
   var modal = document.getElementById('locPickModal');
+  var ctx = locPickCtx, loc = null;
   if (confirm && editLocState.selCab && editLocState.selLayer) {
-    var loc = editLocState.selCab + '-' + editLocState.selLayer;
-    var inp = document.getElementById('editLocInput');
+    loc = editLocState.selCab + '-' + editLocState.selLayer;
+    var inp = ctx ? null : document.getElementById('editLocInput');
     if (inp) { inp.value = loc; }
   }
   editLocState = {selCab: null, selLayer: null};
+  locPickCtx = null;
   if (modal) modal.remove();
+  if (ctx && loc && ctx.onDone) ctx.onDone(loc);
 }
 
 /* ========== GEMINI PASTE MODAL（品項編輯用）========== */
