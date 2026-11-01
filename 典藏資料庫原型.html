@@ -61,6 +61,11 @@ body{background:var(--paper);color:var(--ink);font-size:13px;font-family:'Noto S
 .card-saved{animation:cardFlash .8s ease-out;border-color:var(--jade)!important;}
 mark{background:rgba(196,125,62,0.28);color:var(--ink);border-radius:2px;padding:0 1px;font-style:normal;}
 
+/* 瀏覽頁控制列：滑過控制列後，往下滑收起、往上撥滑出（--keep＝收起時仍露出的高度，批次模式露出批次操作列） */
+.bctl{background:var(--paper);z-index:30;}
+.bctl.float{position:fixed;top:0;left:0;right:0;max-width:680px;margin:0 auto;transform:translateY(calc(-100% + var(--keep,0px)));transition:transform .2s ease;}
+.bctl.float.show{transform:translateY(0);box-shadow:0 2px 10px rgba(26,22,18,0.12);}
+
 /* BATCH MODE */
 .batch-bar{display:flex;align-items:center;gap:8px;padding:9px 16px;background:var(--ink);color:var(--paper);position:sticky;top:0;z-index:20;border-bottom:1px solid rgba(245,240,232,0.1);}
 .batch-info{flex:1;font-size:12px;color:rgba(245,240,232,0.7);letter-spacing:.5px;}
@@ -1259,13 +1264,14 @@ function renderBrowse(q, noReload) {
       +'</div>'
     : '';
 
-  browseEl.innerHTML = catBar + modeNote + batchBar
+  browseEl.innerHTML = modeNote + '<div id="browseCtlSlot"><div class="bctl" id="browseCtl">' + catBar
     + '<div class="toolbar"><div class="search-wrap"><span class="search-icon">⌕</span>'
     + '<input id="searchInput" type="search" enterkeyhint="search" placeholder="搜尋品名、朝代、位置…" value="'+escHtml(q)+'"></div>'
     + '<button class="tbatch" id="searchGoBtn">搜尋</button>'
     + '<div class="count">'+filtered.length+' 件</div>'
     + '<button class="tbatch'+(batchMode?' on':'')+'" id="batchToggle">'+(batchMode?'✕':'☑ 選取')+'</button>'
     + '</div>'
+    + batchBar + '</div></div>'
     + grid;
 
   (function(){
@@ -1314,7 +1320,51 @@ function renderBrowse(q, noReload) {
   });
   var goSetup = document.getElementById('goSetupLink');
   if (goSetup) goSetup.addEventListener('click', showSetup);
+  ctlSync();
 }
+
+// 瀏覽頁控制列（分類列＋搜尋列）：還沒滑過控制列時跟著頁面捲動；滑過之後往下滑收起、往上撥超過 CTL_UP_PX 滑出。
+// 批次模式時批次操作列一直露出。只在捲動方向改變時切換 class，不重畫列表。
+var CTL_UP_PX = 10;
+var ctl = {float:false, show:false, lastY:0, upAcc:0, ticking:false};
+function ctlKeep(box){ var bb = box.querySelector('.batch-bar'); return bb ? bb.offsetHeight : 0; }
+function ctlApply(box, noAnim){
+  if (noAnim) box.style.transition = 'none';
+  box.style.setProperty('--keep', ctlKeep(box)+'px');
+  box.classList.toggle('float', ctl.float);
+  box.classList.toggle('show', ctl.float && ctl.show);
+  if (noAnim) { void box.offsetHeight; box.style.transition = ''; }
+}
+function ctlUpdate(force){
+  var slot = document.getElementById('browseCtlSlot'), box = document.getElementById('browseCtl');
+  if (!slot || !box || !slot.offsetParent) return; // 不在瀏覽頁
+  var y = window.scrollY, dy = y - ctl.lastY; ctl.lastY = y;
+  var top = slot.getBoundingClientRect().top + y, bottom = top + slot.offsetHeight, keep = ctlKeep(box);
+  var wasF = ctl.float, wasS = ctl.show, noAnim = !!force;
+  if (!ctl.float) {
+    if (y > bottom - keep) { ctl.float = true; ctl.show = false; ctl.upAcc = 0; noAnim = true; }
+  } else if (y <= top || (!ctl.show && y < bottom - keep)) {
+    ctl.float = false; ctl.show = false; noAnim = true; // 回到原位，跟頁面一起捲
+  } else if (dy < 0) {
+    ctl.upAcc -= dy; if (ctl.upAcc >= CTL_UP_PX) ctl.show = true;
+  } else if (dy > 0) {
+    ctl.upAcc = 0;
+    if (!box.contains(document.activeElement)) ctl.show = false; // 正在打字搜尋時不收
+  }
+  if (force || wasF !== ctl.float || wasS !== ctl.show) ctlApply(box, noAnim);
+}
+function ctlSync(){ // renderBrowse 重畫後：量新控制列高度，套回目前狀態（不做動畫）
+  var slot = document.getElementById('browseCtlSlot'), box = document.getElementById('browseCtl');
+  if (!slot || !box) return;
+  slot.style.minHeight = box.offsetHeight + 'px';
+  ctl.lastY = window.scrollY;
+  ctlUpdate(true);
+}
+window.addEventListener('scroll', function(){
+  if (ctl.ticking) return;
+  ctl.ticking = true;
+  requestAnimationFrame(function(){ ctl.ticking = false; ctlUpdate(false); });
+}, {passive:true});
 
 function escHtml(s){return(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
