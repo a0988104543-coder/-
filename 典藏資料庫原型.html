@@ -464,7 +464,16 @@ textarea.ffi{resize:vertical;min-height:72px;line-height:1.8;}
 /* ========== CONFIG & API ========== */
 
 var WEBAPP_URL = localStorage.getItem('dbWebappUrl') || '';
+var DB_PASSCODE = localStorage.getItem('dbPasscode') || ''; // 2026-11-18：後端通行碼，輸入一次就記在這台裝置
 var DEMO_MODE  = false; // 無 URL 時使用範例資料
+
+// 後端回「通行碼錯誤／需要通行碼」時，回到連線設定畫面並顯示原因
+var authPromptShown = false;
+function handleAuthError(msg) {
+  if (authPromptShown) return;
+  authPromptShown = true;
+  showSetup(msg || '需要通行碼');
+}
 
 var dataCache    = { loaded: false, items: [] };
 var pendingDeepId = null;  // QR 掃碼 deep link 待開品項
@@ -490,10 +499,11 @@ function parseApiResponse(r){
 function apiGet(params, cb, _attempt) {
   var attempt = _attempt || 0;
   var url = WEBAPP_URL + '?' + Object.keys(params).map(function(k){return k+'='+encodeURIComponent(params[k]);}).join('&')
+          + (DB_PASSCODE ? '&k=' + encodeURIComponent(DB_PASSCODE) : '')
           + '&_t=' + Date.now();   // 避免拿到快取的錯誤頁
   fetch(url, { cache:'no-store' })
     .then(parseApiResponse)
-    .then(function(d){ cb(d.ok ? null : (d.error||'錯誤'), d); })
+    .then(function(d){ if (d.auth) handleAuthError(d.error); cb(d.ok ? null : (d.error||'錯誤'), d); })
     .catch(function(e){
       // Apps Script 偶發錯誤：自動重試 2 次（1.5 秒、4 秒後）
       if (attempt < 2) { setTimeout(function(){ apiGet(params, cb, attempt+1); }, attempt===0 ? 1500 : 4000); return; }
@@ -502,9 +512,10 @@ function apiGet(params, cb, _attempt) {
 }
 
 function apiPost(payload, cb) {
-  fetch(WEBAPP_URL, { method:'POST', body: JSON.stringify(payload) })
+  var body = Object.assign({}, payload, DB_PASSCODE ? { k: DB_PASSCODE } : {});
+  fetch(WEBAPP_URL, { method:'POST', body: JSON.stringify(body) })
     .then(parseApiResponse)
-    .then(function(d){ cb(d.ok ? null : (d.error||'錯誤'), d); })
+    .then(function(d){ if (d.auth) handleAuthError(d.error); cb(d.ok ? null : (d.error||'錯誤'), d); })
     .catch(function(e){ cb(e.message||'網路錯誤', null); });
 }
 
@@ -1145,8 +1156,14 @@ function init() {
 
 /* ========== SETUP SCREEN ========== */
 
-function showSetup() {
+function showSetup(authMsg) {
   document.getElementById('browseMode').innerHTML = renderSetupHtml();
+  if (typeof authMsg === 'string' && authMsg) {
+    var e0 = document.getElementById('setupError');
+    e0.textContent = authMsg + '：請輸入通行碼後按「確認連線」';
+    e0.style.display = 'block';
+    var p0 = document.getElementById('setupPassInput'); if (p0) p0.focus();
+  }
   document.getElementById('fileMode').style.display = 'none';
   document.getElementById('tabBrowse').className = 'tab on';
   document.getElementById('tabFile').className = 'tab';
@@ -1165,6 +1182,9 @@ function renderSetupHtml() {
     +'<div class="setup-url-row">'
     +'<input class="setup-url-input" id="setupUrlInput" placeholder="貼上 Web App URL（https://script.google.com/macros/s/...）" value="'+(WEBAPP_URL||'')+'"><button class="setup-url-btn" id="setupSaveBtn">確認連線</button>'
     +'</div>'
+    +'<div class="setup-url-row">'
+    +'<input class="setup-url-input" id="setupPassInput" type="password" autocomplete="current-password" placeholder="通行碼（輸入一次，這台裝置就會記住）" value="'+(DB_PASSCODE?DB_PASSCODE.replace(/"/g,'&quot;'):'')+'">'
+    +'</div>'
     +'<div class="setup-error" id="setupError"></div>'
     +'<button class="setup-demo-btn" id="setupDemoBtn">先使用範例資料（離線模式）</button>'
     +'</div>';
@@ -1182,12 +1202,17 @@ function bindSetup() {
     errEl.style.display = 'none';
     document.getElementById('setupSaveBtn').textContent = '測試中⋯';
     document.getElementById('setupSaveBtn').disabled = true;
+    var pass = (document.getElementById('setupPassInput').value || '').trim();
     // Test connection
-    fetch(url + '?action=list&cat=CQ')
+    fetch(url + '?action=list&cat=CQ' + (pass ? '&k=' + encodeURIComponent(pass) : ''))
       .then(function(r){ return r.json(); })
       .then(function(d){
+        if (d.auth) throw new Error(d.error || '通行碼不正確');
         if (d.ok !== undefined) {
           localStorage.setItem('dbWebappUrl', url);
+          if (pass) localStorage.setItem('dbPasscode', pass); else localStorage.removeItem('dbPasscode');
+          DB_PASSCODE = pass;
+          authPromptShown = false;
           WEBAPP_URL = url;
           DEMO_MODE  = false;
           dataCache  = { loaded: false, items: [] };
