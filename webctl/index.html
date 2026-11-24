@@ -1281,7 +1281,17 @@ $("#pv").addEventListener("touchend",e=>{if(!pvSw)return;const dx=e.changedTouch
 
 function openEditor(i){
   let sel=[...i.sel];
-  const fld=(k,label,ph="",ta=false)=>`<div class="f"><label for="o-${k}">${label}</label>${ta?`<textarea id="o-${k}" placeholder="${ph}">${esc(i.out[k])}</textarea>`:`<input id="o-${k}" placeholder="${ph}" value="${esc(i.out[k])}">`}</div>`;
+  const fld=(k,label,ph="",ta=false)=>`<div class="f"><label for="o-${k}">${label}</label>${ta?`<textarea id="o-${k}" placeholder="${esc(ph)}">${esc(i.out[k])}</textarea>`:`<input id="o-${k}" placeholder="${esc(ph)}" value="${esc(i.out[k])}">`}</div>`;
+  // 灰字（2026-11-24 Daniel 選 ①）：空白欄位顯示這件在典藏資料庫的內容（前面加「典藏：」，免得誤以為已經填好）；
+  // 典藏也是空的，才用跟類別相符的範例（原本一律是鈞窯，放在字畫上容易誤會）。按「帶入」才真的填進去。
+  const inn=INNER[i.no]||{}, unnamed=v=>!v||/^（?未命名）?$/.test(String(v).trim());
+  const EX=({CQ:{zh:"鈞窯天藍釉紫斑長頸瓶",en:"A Jun-type purple-splashed bottle vase",date:"金元時期",kiln:"鈞窯系",size:"高 28.5 公分"},
+    ZH:{zh:"行書七言詩軸",en:"A calligraphy hanging scroll in running script",date:"清代",kiln:"傳 王鐸",size:"縱 120、橫 45 公分"},
+    YQ:{zh:"青白玉螭龍紋璧",en:"A pale celadon jade bi disc",date:"清代",size:"徑 8 公分"},
+    ZX:{zh:"銅鎏金香爐",en:"A gilt-bronze censer",date:"明代",size:"高 12 公分"}})[i.cat]||{};
+  const hintOf=k=>{const v={zh:unnamed(i.name)?"":i.name,date:inn.date,kiln:inn.kiln,size:inn.size}[k];
+    if(v&&String(v).trim())return "典藏："+String(v).replace(/\s+/g," ").trim();
+    return EX[k]?(k==="en"?"e.g. "+EX[k]:"例："+EX[k]):(k==="kiln"?"沒有就空著":"");};
   // 官網照片分兩步（2026-11-19 Daniel）：
   //   選擇畫面：列出全部照片，勾選要放哪幾張（不能排序）
   //   排序畫面：只顯示選中的，拖曳排序；或點一張框起來，用下方共用的「往前／往後／設為主圖」
@@ -1320,11 +1330,11 @@ function openEditor(i){
    <fieldset><legend>官網上顯示的文字</legend>
      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:-2px 0 12px">
        <button type="button" class="btn small" id="fromDb">⇩ 從典藏資料庫帶入</button>
-       <span class="hint" style="margin:0">把品名、時代、窯口／作者、尺寸、簡述填進空白的欄位當草稿，再自己修改；按「儲存」才算數</span></div>
-     ${fld("zh","品名","例：鈞窯天藍釉紫斑長頸瓶")}${fld("en","英文品名（可以之後補）","A Jun-type purple-splashed bottle vase")}
-     ${fld("date","時代","例：金元時期")}${fld("kiln",i.cat==="ZH"?"作者（照用語規範：直接寫名／傳／款）":"窯口","例：鈞窯系")}
-     ${fld("size","尺寸","例：高 28.5 公分")}${fld("src","來源／著錄（沒有特別例證就空著）","")}
-     ${fld("essay","鑑賞短文","",true)}${fld("essayEn","鑑賞短文（英，可以之後補）","",true)}</fieldset>
+       <span class="hint" style="margin:0">灰字寫「典藏：」的是這件在典藏資料庫的內容，<b>還沒填進來</b>；按這個鈕才會放進空白的欄位當草稿，再自己修改；按「儲存」才算數</span></div>
+     ${fld("zh","品名",hintOf("zh"))}${fld("en","英文品名（可以之後補）",hintOf("en"))}
+     ${fld("date","時代",hintOf("date"))}${fld("kiln",i.cat==="ZH"?"作者（照用語規範：直接寫名／傳／款）":"窯口",hintOf("kiln"))}
+     ${fld("size","尺寸",hintOf("size"))}${fld("src","來源／著錄（沒有特別例證就空著）","")}
+     ${fld("essay","鑑賞短文",inn.hasDesc?"典藏資料庫有簡述，按上面「⇩ 從典藏資料庫帶入」可以放進來當草稿":"",true)}${fld("essayEn","鑑賞短文（英，可以之後補）","",true)}</fieldset>
    <fieldset><legend>官網照片</legend>
      <div id="photos">${photos()}</div></fieldset>
    <fieldset><legend>去背主圖（列表和首頁用）</legend>
