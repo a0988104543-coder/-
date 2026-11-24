@@ -7,6 +7,14 @@
 
 ---
 
+## 2026-11-25 00:15｜Claude Code（終端機）｜官網控制台接上「預覽」「發布」（官網施工第 6 步階段 D）
+
+- **`webctl/index.html`**（本機原檔 git `d959948`）：「預覽」「發布」按鈕接上後端 `webPublish`。按下先把修改存好→檢查（只看不送）→列出件數、照片、發布前提醒→按「送到預覽」／「確定發布到正式官網」才真的送；照片沒送完自動接著送；取消、Esc 都不會送；有修改沒存好會擋下。正式發布的確認畫面寫明客人會看到。
+- **Apps Script 練習部署作業**（`AKfycbyihh9…`，Daniel 同意）：換成**第 28 版**（程式跟第 27 版之後 clasp push 的一樣，推前 pull 比對＝本機），說明「練習版：官網控制台存檔＋發布（非正式）」。**正式部署仍第 25 版**（已在部署畫面確認），典藏資料庫不受影響。
+- 試算表、典藏資料庫前端都沒動。
+
+---
+
 ## 2026-11-24 23:51｜Claude Code（終端機）｜Apps Script 加「官網發布」（官網施工第 6 步階段 C）
 
 - **Apps Script**（Daniel 同意 clasp push；推前 pull 比對沒人改過；原檔 `文物apps-script_備份程式碼_原檔_20261124_發布前.js`）：只新增，原功能沒動。新增 `webBuildSite_`（照試算表整理官網 site.json，只讀）、`webPublish`（POST `action=webPublish`，`target`=preview／site，`dry` 只檢查；照片從 Drive 縮成長邊 600／2000 送進官網收貨窗口 `/api/publish`，分批接續，照片送完才送 site.json）、`webPublishSelfTest`、`webPublishPreview`。
