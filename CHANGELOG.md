@@ -7,6 +7,15 @@
 
 ---
 
+## 2026-11-24 23:51｜Claude Code（終端機）｜Apps Script 加「官網發布」（官網施工第 6 步階段 C）
+
+- **Apps Script**（Daniel 同意 clasp push；推前 pull 比對沒人改過；原檔 `文物apps-script_備份程式碼_原檔_20261124_發布前.js`）：只新增，原功能沒動。新增 `webBuildSite_`（照試算表整理官網 site.json，只讀）、`webPublish`（POST `action=webPublish`，`target`=preview／site，`dry` 只檢查；照片從 Drive 縮成長邊 600／2000 送進官網收貨窗口 `/api/publish`，分批接續，照片送完才送 site.json）、`webPublishSelfTest`、`webPublishPreview`。
+- **指令碼屬性** 新增 `PUBLISH_KEY`（發布密碼，Daniel 自己貼）。
+- **部署作業沒換**：正式仍第 25 版、練習仍第 27 版；控制台還叫不到發布。
+- 自我測試全過；23:51 從編輯器發布一次到**預覽倉庫**（9 件），Daniel 手機看過「操作正常」。試算表、典藏資料庫前端、控制台都沒動。
+
+---
+
 ## 2026-11-24 22:40｜Claude Code（終端機）｜官網控制台「帶入」灰字改版、刪孤兒系列 `8g518`（官網施工第 4 步之⑤）
 
 - **`webctl/index.html`**（本機原檔 git `dff1776`，Daniel 用真資料預覽後同意）：編輯面板品名、時代、窯口／作者、尺寸空白時，灰字顯示「典藏：（這件在典藏資料庫的內容）」；典藏也空白（或品名「（未命名）」）時改用該類別的範例，字畫不再出現鈞窯範例。「⇩ 從典藏資料庫帶入」照舊，按了才填。
