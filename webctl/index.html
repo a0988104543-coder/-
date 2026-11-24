@@ -356,6 +356,10 @@ legend{font-weight:600;margin-bottom:8px;font-size:13px}
 .pubbody .ok{color:var(--ok);font-weight:600}
 .pubbody ul{margin:6px 0 0;padding-left:20px;font-size:13px;color:var(--muted)}
 .pubbody details{margin-top:6px}
+.hlist{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.hrow{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;border:1px solid var(--line);border-radius:6px;padding:6px 10px;background:#fff}
+.hrow.cur{background:var(--bg);color:var(--muted)}
+.pubfoot .left{margin-right:auto}
 .pubbody summary{cursor:pointer;font-size:13px}
 .pubfoot{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;padding:12px 16px;border-top:1px solid var(--line);background:var(--bg);border-radius:0 0 var(--radius) var(--radius)}
 .pubfoot a.btn{text-decoration:none;color:inherit;display:inline-flex;align-items:center}
@@ -1492,7 +1496,7 @@ function pubShow(title,html,btns,busy){
   btns.forEach(b=>{let el;
     if(b.href){el=document.createElement("a");el.href=b.href;el.target="_blank";el.rel="noopener";}
     else{el=document.createElement("button");el.type="button";el.onclick=b.fn;}
-    el.className="btn"+(b.primary?" primary":""); el.textContent=b.label; foot.appendChild(el);});
+    el.className="btn"+(b.primary?" primary":"")+(b.left?" left":""); el.textContent=b.label; foot.appendChild(el);});
   $("#pubDlg").hidden=false;
   const last=foot.lastElementChild; if(last)last.focus();
 }
@@ -1514,13 +1518,14 @@ async function flushSave(){
   }
   if(saveState==="conflict"||saveState==="fail"||saving||isDirty())throw new Error("修改還沒存好，請等存檔完成再試");
 }
-async function pubCall(target,dry){
+const pubCall=(target,dry)=>postApi({action:"webPublish",target,dry});
+async function postApi(body){
   let r;
   try{ r=await fetch(localStorage.getItem(LS_URL),{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},
-    body:JSON.stringify({action:"webPublish",k:localStorage.getItem(LS_PASS)||"",target,dry})}); }
+    body:JSON.stringify({...body,k:localStorage.getItem(LS_PASS)||""})}); }
   catch(e){ throw new Error("連不上後端"); }
   let d; try{ d=await r.json(); }catch(e){ throw new Error("後端的回應看不懂"); }
-  if(!d.ok){ const e=new Error(d.error||"發布失敗"); e.auth=!!d.auth; throw e; }
+  if(!d.ok){ const e=new Error(d.error||"後端回報失敗"); e.auth=!!d.auth; throw e; }
   return d;
 }
 async function runPublish(target){
@@ -1538,7 +1543,7 @@ async function runPublish(target){
     const info=`<p class="big">公開 <b>${chk.items}</b> 件・分組 <b>${chk.groups}</b> 個・照片 <b>${chk.photos}</b> 張</p><p>${photoLine}</p>`;
     const go=await new Promise(done=>{ const res=v=>{ pubAsk=null; done(v); }; pubAsk=done;
       if(isSite) pubShow(title,`<p class="alarm">按下確定後，<b>客人在 ${esc(SITE_URL.replace("https://",""))} 會直接看到</b>這次的內容。建議先按「預覽」看過。</p>${info}${warnHtml(chk.warnings)}`,
-        [{label:"取消",fn:()=>res(false)},{label:"確定發布到正式官網",primary:true,fn:()=>res(true)}]);
+        [{label:"退回舊版…",left:true,fn:()=>{res(false);setTimeout(runHistory,0);}},{label:"取消",fn:()=>res(false)},{label:"確定發布到正式官網",primary:true,fn:()=>res(true)}]);
       else pubShow(title,`<p>預覽只有知道網址的人看得到，不影響正式官網。</p>${info}${warnHtml(chk.warnings)}`,
         [{label:"取消",fn:()=>res(false)},{label:"送到預覽",primary:true,fn:()=>res(true)}]);
     });
@@ -1560,12 +1565,51 @@ async function runPublish(target){
       `<p>${sent?`這次送了 ${sent} 份照片檔。`:"照片沒有變動。"}${isSite?"客人那邊最慢約 1 分鐘後會看到新內容。":""}</p>`+
       (failed.length?`<p class="alarm">有 ${failed.length} 張照片送不出去（可能已從 Drive 刪掉），這次先不放，見下方提醒。</p>`:"")+
       warnHtml(d.warnings),
-      [{label:"關閉",fn:pubClose},{label:isSite?"打開官網":"打開預覽",primary:true,href:url}]);
+      (isSite?[{label:"退回舊版…",left:true,fn:()=>{pubBusy=false;runHistory();}}]:[]).concat([{label:"關閉",fn:pubClose},{label:isSite?"打開官網":"打開預覽",primary:true,href:url}]));
   }catch(e){
     pubBusy=false;
     if(e.auth){ $("#pubDlg").hidden=true; localStorage.removeItem(LS_PASS); localStorage.removeItem(LS_CACHE); _closeDrawer(); view.innerHTML=""; setSync(""); SNAP=null; showLogin(e.message); return; }
     pubShow(title,`<p class="alarm">${name}沒有更新：${esc(e.message)}</p><p>試算表裡的資料不受影響，可以稍後再按一次。</p>`,[{label:"關閉",fn:pubClose}]);
   }finally{ publishing=false; pubBusy=false; }
+}
+// 退回舊版（2026-11-25）：正式官網每次發布，舊的 site.json 會自動留一份；這裡列出來、選一版換回去
+// 只換文字資料，照片倉庫只增不刪；試算表不動，下次發布會照試算表重新整理
+const verLine=v=>`${esc(v.at||"（時間不明）")}・${v.items} 件`;
+async function runHistory(){
+  if(publishing)return;
+  const title="退回舊版";
+  publishing=true;
+  try{
+    pubShow(title,busyHtml("讀取正式官網的舊版清單…"),[],true);
+    const h=await postApi({action:"webHistory",target:"site"});
+    if(!h.versions.length){
+      pubShow(title,`<p>${h.current?"正式官網目前只發布過一次，還沒有舊版可以退。":"正式官網還沒發布過。"}</p><p>每次按「發布」，前一版會自動留一份，之後就能在這裡退回。</p>`,[{label:"關閉",fn:pubClose}]);
+      return;
+    }
+    const pick=await new Promise(done=>{ pubAsk=done;
+      pubShow(title,`<p>選一版換回去。現在這版會自動留一份，退錯了可以再換回來。</p><div class="hlist">`+
+        (h.current?`<div class="hrow cur"><span>現在：${verLine(h.current)}</span></div>`:"")+
+        h.versions.map((v,n)=>`<div class="hrow"><span>${n===0?"上一版：":""}${verLine(v)}</span><button type="button" class="btn small" data-n="${n}">退回這版</button></div>`).join("")+
+        `</div>`+(h.total>h.versions.length?`<p class="hint">只列最近 ${h.versions.length} 版（共 ${h.total} 版）。</p>`:""),
+        [{label:"取消",fn:()=>{pubAsk=null;done(null);}}]);
+      $("#pubBody").querySelectorAll("[data-n]").forEach(b=>b.onclick=()=>{pubAsk=null;done(h.versions[+b.dataset.n]);});
+    });
+    if(!pick){ pubClose(); return; }
+    const go=await new Promise(done=>{ const res=v=>{ pubAsk=null; done(v); }; pubAsk=done;
+      pubShow(title,`<p class="alarm">正式官網會換回 <b>${verLine(pick)}</b> 那一版，<b>客人約 1 分鐘後會看到</b>。</p>`+
+        `<p>注意：試算表和控制台裡的資料不會跟著變。之後再按「發布」，會照試算表現在的內容重新發布，所以要記得把出問題的地方在控制台改好。</p>`,
+        [{label:"取消",fn:()=>res(false)},{label:"確定退回",primary:true,fn:()=>res(true)}]);
+    });
+    if(!go){ pubClose(); return; }
+    pubShow(title,busyHtml("換回舊版中…"),[],true);
+    const r=await postApi({action:"webRollback",target:"site",key:pick.key});
+    pubShow(title,`<p class="ok">正式官網已換回 ${esc(r.at||pick.at||"")} 那一版：${r.items} 件</p><p>客人那邊最慢約 1 分鐘後會看到。</p>`,
+      [{label:"關閉",fn:pubClose},{label:"打開官網",primary:true,href:SITE_URL+"/"}]);
+  }catch(e){
+    pubBusy=false;
+    if(e.auth){ $("#pubDlg").hidden=true; localStorage.removeItem(LS_PASS); localStorage.removeItem(LS_CACHE); _closeDrawer(); view.innerHTML=""; setSync(""); SNAP=null; showLogin(e.message); return; }
+    pubShow(title,`<p class="alarm">沒有退回：${esc(e.message)}</p><p>正式官網維持原樣。</p>`,[{label:"關閉",fn:pubClose}]);
+  }finally{ publishing=false; pubBusy=false; pubAsk=null; }
 }
 $("#previewBtn").onclick=()=>runPublish("preview");
 $("#publishBtn").onclick=()=>runPublish("site");
