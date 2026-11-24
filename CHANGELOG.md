@@ -7,6 +7,16 @@
 
 ---
 
+## 2026-11-24 21:50｜Claude Code（終端機）｜官網控制台放上 GitHub Pages（官網施工第 4 步之③④）
+
+- **新增 `webctl/index.html`**：官網控制台，網址 `https://a0988104543-coder.github.io/-/webctl/`。原檔在本機 `文物\官網\控制台\index.html`（有本機 git），這裡是複製過來發布用的；**以後改控制台：先改本機原檔，再複製到這裡推上來**。
+  - 程式碼裡沒有後端網址、通行碼、藏品資料；登入時輸入，記在各自裝置的瀏覽器（localStorage `webCtlUrl`／`webCtlPass`／`webCtlCache`，跟典藏資料庫的 `dbWebappUrl` 不同名，互不影響）。加了 `noindex`。
+  - 目前接的是**練習版部署**（第 27 版）；正式部署仍第 25 版。控制台改接正式網址前要先問 Daniel。
+  - 之③（同日）：官網照片用典藏資料庫原有的 `action=images` 讀 Drive 照片，勾選排序後以檔案 ID 存進「官網照片」欄；加照片放大與局部放大。**後端沒改**。
+- 典藏資料庫前端（`典藏資料庫原型.html`）、Apps Script、試算表結構都沒動。
+
+---
+
 ## 2026-11-24 20:50｜Claude Code（終端機）｜官網控制台自動存檔、新增「官網頁面」分頁、練習版第 27 版（官網施工第 4 步之②）
 
 - **試算表**（Daniel 同意；先整份備份「迪化街典藏資料庫_備份_20261124_官網頁面前」，ID `1M3sRTFnW1Ek35H-FXIlBZBgnNXh1oq0Kq5gUujxKj-c`）：
