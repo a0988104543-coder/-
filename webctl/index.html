@@ -481,6 +481,13 @@ const driveThumb=(id,w=800)=>`https://drive.google.com/thumbnail?id=${encodeURIC
 // 典藏封面小圖網址裡的檔案 ID（批次設成公開、還沒選照片時，拿封面當主圖用）
 const coverId=no=>{const m=/[?&]id=([A-Za-z0-9_-]+)/.exec(COVER[no]||"");return m?m[1]:"";};
 // 列表、首頁用的主圖：有去背用去背，沒有就用你選的第一張，再沒有就用典藏封面
+// 去背主圖欄（AG）的值（2026-11-26）：空白＝還沒處理；「待辦」；「主圖」＝背景本來就乾淨、直接用第一張；「失敗」＝做不了、列表用原圖；其餘＝去背圖的 Drive 檔案 ID。
+// 發布程式只把檔案 ID 當去背圖，「主圖」「失敗」一律改用第一張照片，所以後端不用改。
+const BG_MARKS=["主圖","失敗"];
+const bgState=v=>{v=String(v||"");const mk=BG_MARKS.includes(v)?v:"", id=v&&v!=="待辦"&&!mk?v:"";
+  return {bg:id?driveThumb(id):"",bgId:id,bgq:v==="待辦",bgMark:mk};};
+const bgValue=i=>i.bgq?"待辦":(i.bgId||i.bgMark||"");
+function setBg(i,v){Object.assign(i,bgState(v));}
 const mainImg=i=>i?(i.bg||(i.sel.length?driveThumb(i.sel[0]):(COVER[i.no]||""))):"";
 let ITEMS=[], ORDER=[], GROUPS=[], CATTREE=[];
 // 圖錄、關於、詢問：存在試算表「官網頁面」分頁（2026-11-24），詢問頁前言存在「官網設定」
@@ -505,7 +512,7 @@ function loadData(d){
     if(r.subs&&r.subs.length){ITEM_SUBS[r.id]=r.subs;r.subs.forEach(s=>{if(SUBCATS[r.cat]&&!SUBCATS[r.cat].includes(s))SUBCATS[r.cat].push(s);});}
     return {no:r.id,cat:r.cat,name:r.name,status:r.status,folderId:r.folderId,photos:r.coverThumb?1:0,
       raw:{...w},   // 試算表上目前的值（存檔時拿來確認沒被別的裝置改過）
-      bg:w.bg&&w.bg!=="待辦"?driveThumb(w.bg):"", bgId:w.bg&&w.bg!=="待辦"?w.bg:"", bgq:w.bg==="待辦",
+      ...bgState(w.bg),
       pub:isOn(w.pub),st:w.st||"",code:w.code||"",sort:w.sort||"",
       out:{zh:w.zh||"",en:w.en||"",date:w.date||"",kiln:w.kiln||"",size:w.size||"",src:w.src||"",essay:w.essay||"",essayEn:w.essayEn||""},
       sel:splitList(w.photos),mainAuto:isOn(w.mainAuto),groups:[]};
@@ -535,7 +542,7 @@ function itemWeb(i){
   const pos=i.pub&&i.code?ORDER.indexOf(i.code):-1;
   return {pub:tf(i.pub),st:i.st||"",sort:pos>=0?String(pos+1):str(i.raw.sort),code:i.code||"",
     zh:i.out.zh,en:i.out.en,date:i.out.date,kiln:i.out.kiln,size:i.out.size,src:i.out.src,essay:i.out.essay,essayEn:i.out.essayEn,
-    photos:i.sel.join(","),bg:i.bgq?"待辦":(i.bgId||""),mainAuto:tf(i.mainAuto)};
+    photos:i.sel.join(","),bg:bgValue(i),mainAuto:tf(i.mainAuto)};
 }
 const catRows=()=>CATTREE.map((c,k)=>({id:c.id,name:str(c.name),en:str(c.en),src:(c.src||[]).join(","),show:tf(c.show),sort:String(k+1)}));
 const groupRows=()=>GROUPS.map((g,k)=>({id:g.id,type:str(g.type),zh:str(g.zh),en:str(g.en),from:str(g.from),to:str(g.to),place:str(g.place),
@@ -627,7 +634,7 @@ function missing(i){
   if(!i.out.size) m.push("缺尺寸");
   if(!i.sel.length) m.push("沒勾照片");
   if(i.mainAuto) m.push("主圖未確認");
-  if(!i.bg) m.push(i.bgq?(CUTMARKS[i.no]?"去背處理中・"+CUTMARKS[i.no].who:"等待去背"):"缺去背主圖");
+  if(!i.bg&&i.bgMark!=="主圖") m.push(i.bgq?(CUTMARKS[i.no]?"去背處理中・"+CUTMARKS[i.no].who:"等待去背"):i.bgMark==="失敗"?"去背失敗（列表用原圖）":"缺去背主圖");
   return m;
 }
 
@@ -1012,7 +1019,7 @@ function renderHome(){
          <button class="btn small" id="featBtn" style="align-self:flex-start;margin-top:10px;font-family:system-ui,sans-serif">${picking2?"收起":"更換主打"}</button></div>
      </div>
      ${picking2?`<div class="picker"><div class="hint" style="margin:0">點一件換成本期主打。只列已公開的品項；沒有去背主圖的會標出來。</div>
-       <div class="strip">${pubs.map(p=>`<button class="pk" data-code="${p.code}" aria-pressed="${p.code===HOME.feature}">${img(p)?`<img src="${img(p)}" alt="">`:""}${p.bg?"":`<span class="nb">未去背</span>`}<small>${esc(p.out.zh||p.name)}</small></button>`).join("")}</div></div>`:""}
+       <div class="strip">${pubs.map(p=>`<button class="pk" data-code="${p.code}" aria-pressed="${p.code===HOME.feature}">${img(p)?`<img src="${img(p)}" alt="">`:""}${p.bg||p.bgMark==="主圖"?"":`<span class="nb">未去背</span>`}<small>${esc(p.out.zh||p.name)}</small></button>`).join("")}</div></div>`:""}
      ${exNow?`<div class="hm-news" style="align-items:center;text-align:center">
        <div style="font-size:13px;letter-spacing:.3em">展覽・${exNow.from<=TODAY?"現正展出":"即將展出"}</div>
        <div style="font-size:19px;letter-spacing:.24em">${esc(exNow.zh)}</div>
@@ -1026,7 +1033,7 @@ function renderHome(){
   const toggle=()=>{picking2=!picking2;renderHome();};
   $("#featImg").onclick=toggle; $("#featBtn").onclick=toggle;
   view.querySelectorAll(".pk").forEach(b=>b.onclick=()=>{const p=byCode(b.dataset.code);HOME.feature=p.code;picking2=false;touch();
-    toast(p.bg?`本期主打換成「${p.out.zh||p.name}」`:`本期主打換成「${p.out.zh||p.name}」。這件還沒有去背主圖，建議先加入去背待辦`);renderHome();});
+    toast(p.bg||p.bgMark==="主圖"?`本期主打換成「${p.out.zh||p.name}」`:`本期主打換成「${p.out.zh||p.name}」。這件還沒有去背主圖，建議先加入去背待辦`);renderHome();});
 }
 function bindHomeCommon(){
   const g=$("#goEx"); if(g)g.onclick=()=>{const ex=GROUPS.find(x=>x.type==="展覽"&&x.pub);exOpen=ex?ex.id:null;tab="groups";render();};
@@ -1378,9 +1385,11 @@ function openEditor(i){
      <div id="photos">${photos()}</div></fieldset>
    <fieldset><legend>去背主圖（列表和首頁用）</legend>
      <p class="hint">按「加入去背待辦」後，叫 Claude「處理去背待辦」。做好會在控制台跳出總表（原圖｜成品），你按「全部寫入」才會存，存完自動更新預覽。</p>
-     <div class="cutout">${i.bg?`<img src="${i.bg}" alt="去背主圖">已完成`:i.bgq?`<span class="flag">${CUTMARKS[i.no]?"去背處理中・"+esc(CUTMARKS[i.no].who):"等待去背"}</span>`:`<span class="flag">還沒有</span>`}
-       ${i.photos?`<button type="button" class="btn small" id="mkbg">${i.bg?"重做":i.bgq?"取消待辦":"加入去背待辦"}</button>
-       <button type="button" class="btn small" id="usemain">直接用主圖</button>`:`<span class="hint" style="margin:0">先在典藏資料庫拍照上傳</span>`}</div></fieldset>
+     <div class="cutout">${i.bg?`<img src="${i.bg}" alt="去背主圖">已完成`:i.bgq?`<span class="flag">${CUTMARKS[i.no]?"去背處理中・"+esc(CUTMARKS[i.no].who):"等待去背"}</span>`
+         :i.bgMark==="主圖"?`<span>直接用主圖（背景本來就乾淨）</span>`:i.bgMark==="失敗"?`<span class="flag">去背失敗，列表用原圖</span>`:`<span class="flag">還沒有</span>`}
+       ${i.photos?`<button type="button" class="btn small" id="mkbg">${i.bg?"重做":i.bgq?"取消待辦":i.bgMark==="失敗"?"再試一次":"加入去背待辦"}</button>
+       ${i.bgMark==="主圖"?"":`<button type="button" class="btn small" id="usemain">直接用主圖</button>`}
+       ${i.bgq?`<button type="button" class="btn small" id="bgfail">標為去背失敗</button>`:""}`:`<span class="hint" style="margin:0">先在典藏資料庫拍照上傳</span>`}</div></fieldset>
    <fieldset><legend>官網大分類</legend>${(()=>{const t=tops().find(t=>(t.src||[]).includes(i.cat));
        return t?`<p class="hint" style="margin:0">「${esc(t.name)}」：依典藏大分類（${CATS[i.cat]}）自動歸類，不用選。</p>`
          :`<p class="hint" style="margin:0;color:var(--warn)">目前沒有官網大分類會自動收「${CATS[i.cat]}」，公開後客人在藏品頁找不到它。到「藏品」分頁按「✎ 編輯分類・系列」，新增大分類或設定自動收${CATS[i.cat]}。</p>`;})()}</fieldset>
@@ -1445,8 +1454,9 @@ function openEditor(i){
   $("#e-pub").onchange=e=>{if(!e.target.checked||sel.length)return;
     const first=(all&&all[0]&&all[0].id)||coverId(i.no);
     if(first){sel=[first];mainAuto=true;phMode="order";redrawPh();toast("已先用第一張當主圖，可以在「官網照片」換");}};
-  if($("#mkbg"))$("#mkbg").onclick=()=>{i.bgq=!i.bgq||!!i.bg;if(i.bg){i.bg="";i.bgId="";i.bgq=true;}touch();
-    toast(i.bgq?"已加入去背待辦，叫 Claude「處理去背待辦」":"已取消去背待辦");closeDrawer();render();};
+  // 去背主圖的三個按鈕（2026-11-26）：重做／加入待辦／再試一次＝改成「待辦」；取消待辦＝清空；直接用主圖；標為去背失敗
+  if($("#mkbg"))$("#mkbg").onclick=()=>{const was=i.bgq;setBg(i,was?"":"待辦");touch();
+    toast(was?"已取消去背待辦":"已加入去背待辦，叫 Claude「處理去背待辦」");closeDrawer();render();};
   // 一鍵帶入：只填空白欄位，已經寫好的不蓋掉（2026-11-19 Daniel）
   $("#fromDb").onclick=async()=>{const s=INNER[i.no]||{};
     // 簡述全文不在一開始讀的資料裡（2026-11-24 瘦身），按「帶入」時才向後端讀這一件
@@ -1461,7 +1471,8 @@ function openEditor(i){
     const src={zh:i.name,date:s.date,kiln:s.kiln,size:s.size,essay:s.desc};let n=0;
     Object.entries(src).forEach(([k,v])=>{const el=$("#o-"+k);if(el&&!el.value.trim()&&v){el.value=v;n++;el.style.background="#fff8e6";}});
     toast(n?`已帶入 ${n} 個欄位，黃底的是剛帶入的，改好再按「儲存」`:"欄位都已經有內容，沒有帶入");};
-  if($("#usemain"))$("#usemain").onclick=()=>{toast("正式版：背景本來就乾淨時，第一張照片直接當列表主圖，不用去背");};
+  if($("#usemain"))$("#usemain").onclick=()=>{setBg(i,"主圖");touch();toast("這件直接用第一張照片當列表主圖，不去背");closeDrawer();render();};
+  if($("#bgfail"))$("#bgfail").onclick=()=>{setBg(i,"失敗");touch();toast("已標為去背失敗，列表會用原圖");closeDrawer();render();};
 }
 
 function openGroup(g,isNew){
@@ -1511,7 +1522,8 @@ function pubShow(title,html,btns,busy){
     else{el=document.createElement("button");el.type="button";el.onclick=b.fn;}
     el.className="btn"+(b.primary?" primary":"")+(b.left?" left":""); el.textContent=b.label; foot.appendChild(el);});
   $("#pubDlg").hidden=false;
-  const last=foot.lastElementChild; if(last)last.focus();
+  // 游標預設停在最後一顆；按鈕設 focus:true 的停在那顆（危險的確認畫面停在「取消」，2026-11-26）
+  const fk=btns.findIndex(b=>b.focus), fe=fk>=0?foot.children[fk]:foot.lastElementChild; if(fe)fe.focus();
 }
 function pubClose(){ if(pubBusy)return; $("#pubDlg").hidden=true; if(pubAsk){ const f=pubAsk; pubAsk=null; f(false); } }
 addEventListener("keydown",e=>{ if(e.key==="Escape"&&!$("#pubDlg").hidden){ pubClose(); e.stopImmediatePropagation(); } },true);
@@ -1557,7 +1569,7 @@ async function runPublish(target,opts={}){
     const info=`<p class="big">公開 <b>${chk.items}</b> 件・分組 <b>${chk.groups}</b> 個・照片 <b>${chk.photos}</b> 張</p><p>${photoLine}</p>`;
     const go=(opts.auto&&!isSite)?true:await new Promise(done=>{ const res=v=>{ pubAsk=null; done(v); }; pubAsk=done;
       if(isSite) pubShow(title,`<p class="alarm">按下確定後，<b>客人在 ${esc(SITE_URL.replace("https://",""))} 會直接看到</b>這次的內容。建議先按「預覽」看過。</p>${info}${warnHtml(chk.warnings)}`,
-        [{label:"退回舊版…",left:true,fn:()=>{res(false);setTimeout(runHistory,0);}},{label:"取消",fn:()=>res(false)},{label:"確定發布到正式官網",primary:true,fn:()=>res(true)}]);
+        [{label:"退回舊版…",left:true,fn:()=>{res(false);setTimeout(runHistory,0);}},{label:"取消",focus:true,fn:()=>res(false)},{label:"確定發布到正式官網",primary:true,fn:()=>res(true)}]);
       else pubShow(title,`<p>預覽只有知道網址的人看得到，不影響正式官網。</p>${info}${warnHtml(chk.warnings)}`,
         [{label:"取消",fn:()=>res(false)},{label:"送到預覽",primary:true,fn:()=>res(true)}]);
     });
@@ -1612,7 +1624,7 @@ async function runHistory(){
     const go=await new Promise(done=>{ const res=v=>{ pubAsk=null; done(v); }; pubAsk=done;
       pubShow(title,`<p class="alarm">正式官網會換回 <b>${verLine(pick)}</b> 那一版，<b>客人約 1 分鐘後會看到</b>。</p>`+
         `<p>注意：試算表和控制台裡的資料不會跟著變。之後再按「發布」，會照試算表現在的內容重新發布，所以要記得把出問題的地方在控制台改好。</p>`,
-        [{label:"取消",fn:()=>res(false)},{label:"確定退回",primary:true,fn:()=>res(true)}]);
+        [{label:"取消",focus:true,fn:()=>res(false)},{label:"確定退回",primary:true,fn:()=>res(true)}]);
     });
     if(!go){ pubClose(); return; }
     pubShow(title,busyHtml("換回舊版中…"),[],true);
@@ -1752,7 +1764,7 @@ function cutReviewHtml(){
       `對照原圖｜成品，不要的取消勾選，按「全部寫入」才會存進 Drive、填去背主圖，存完自動更新預覽。</p>`:`<p>還沒收到任何去背成品。</p>`)+
     xs.map(x=>`<div class="cutrow ${x.ok?"":"bad"}"><div class="cuthd">${x.ok?`<label><input type="checkbox" data-cut="${esc(x.no)}" ${x.take?"checked":""}>${esc(x.name)}</label>`:`<b>${esc(x.name)}</b>`}
         <span class="cutst">${esc(x.no)}${st(x)?"・"+st(x):""}</span></div>
-      ${x.ok?"":`<p class="alarm" style="margin:6px 0 0">去背失敗：${esc(x.err)}。這件維持「等待去背」。</p>`}
+      ${x.ok?"":`<p class="alarm" style="margin:6px 0 0">去背失敗：${esc(x.err)}。這件維持「等待去背」。${byNo(x.no)&&byNo(x.no).bgq?` <button type="button" class="btn small" data-cutfail="${esc(x.no)}">標為去背失敗（列表用原圖）</button>`:""}</p>`}
       ${x.origUrl||x.outUrl?`<div class="cutpair">${x.origUrl?`<figure><a href="${x.origUrl}" target="_blank" rel="noopener"><img src="${x.origUrl}" alt="原圖"></a><figcaption>原圖</figcaption></figure>`:""}${x.outUrl?`<figure><a href="${x.outUrl}" target="_blank" rel="noopener"><img src="${x.outUrl}" alt="成品"></a><figcaption>成品（點圖看原尺寸）</figcaption></figure>`:""}</div>`:""}</div>`).join("")+
     (waiting.length?`<p class="hint">還在等的 ${waiting.length} 件：${waiting.map(i=>esc(i.out.zh||i.name)+(CUTMARKS[i.no]?`（處理中・${esc(CUTMARKS[i.no].who)}）`:"")).join("、")}</p>`:"")+
     `<details class="cutpaste"><summary>貼上輪廓資料（給 Claude 備用）</summary><textarea id="cutIn" placeholder='{"no":"ZH-…","rle":"…","hash":123}' spellcheck="false"></textarea>
@@ -1772,6 +1784,8 @@ function cutoutReview(){
   [...$("#pubFoot").children].find(b=>b.textContent==="稍後再說").focus();
   $("#pubBody").querySelectorAll("[data-cut]").forEach(c=>c.onchange=()=>{const x=CUTQ.get(c.dataset.cut); if(x)x.take=c.checked;
     const b=$("#pubFoot .primary"); if(b)b.textContent=`全部寫入（${[...CUTQ.values()].filter(y=>y.ok&&y.take).length} 件）`;});
+  $("#pubBody").querySelectorAll("[data-cutfail]").forEach(b=>b.onclick=()=>{const i=byNo(b.dataset.cutfail),x=CUTQ.get(b.dataset.cutfail);
+    if(i){setBg(i,"失敗");touch();} cutFree(x);CUTQ.delete(b.dataset.cutfail);cutPaint();render();toast("已標為去背失敗");cutoutReview();});
   $("#cutInGo").onclick=async()=>{ let list;
     try{ list=JSON.parse($("#cutIn").value); }catch(e){ toast("看不懂貼上的資料（要是 JSON）"); return; }
     for(const o of [].concat(list)) await cutoutReceive(o.no,o.rle,o.hash,o);
@@ -1794,7 +1808,7 @@ function cutoutFail(no,reason){
 }
 // 寫入後把控制台手上的資料也換成新的檔案 ID，免得自動存檔把「待辦」寫回去
 function cutApply(i,id){
-  i.bgId=id; i.bg=driveThumb(id); i.bgq=false; i.raw.bg=id;
+  setBg(i,id); i.raw.bg=id;
   if(SNAP&&SNAP.items[i.no])SNAP.items[i.no].bg=id;
   const r=DATA.items.find(x=>x.id===i.no); if(r)r.web={...(r.web||{}),bg:id};
   delete CUTMARKS[i.no]; DATA.cutoutMarks={...CUTMARKS}; saveCache(DATA);
