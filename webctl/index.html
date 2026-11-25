@@ -348,6 +348,17 @@ legend{font-weight:600;margin-bottom:8px;font-size:13px}
 .pubdlg{position:fixed;inset:0;z-index:60;display:grid;place-items:center;background:rgba(0,0,0,.38);padding:16px}
 .pubdlg[hidden]{display:none}
 .pubbox{background:var(--card);border-radius:var(--radius);width:min(540px,100%);max-height:86vh;display:flex;flex-direction:column;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+.pubbox.wide{width:min(980px,100%)}
+/* 去背總表（2026-11-25）：原圖｜成品並排 */
+.cutrow{border:1px solid var(--line);border-radius:6px;padding:8px 10px;margin:0 0 10px;background:#fff}
+.cutrow.bad{background:#f8e9e5}
+.cuthd{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:space-between;font-size:13px}
+.cuthd label{display:flex;gap:6px;align-items:center;font-weight:600}
+.cutst{font-size:12px;color:var(--muted)}
+.cutpair{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}
+.cutpair figure{margin:0;text-align:center;font-size:11px;color:var(--muted)}
+.cutpair img{width:100%;max-height:46vh;object-fit:contain;background:#d8d6d2;display:block}
+.cutpaste textarea{width:100%;min-height:72px;font-family:ui-monospace,monospace;font-size:11px;margin:6px 0}
 .pubbox h2{margin:0;font-size:16px;padding:14px 16px;border-bottom:1px solid var(--line)}
 .pubbody{padding:14px 16px;overflow:auto;font-size:14px}
 .pubbody p{margin:0 0 10px}
@@ -400,6 +411,7 @@ legend{font-weight:600;margin-bottom:8px;font-size:13px}
     <div class="spacer"></div>
     <span class="sync" id="sync" role="status"></span>
     <span class="pending" id="pending"></span>
+    <button class="btn small" id="cutBtn" hidden title="去背待辦與總表"></button>
     <button class="btn small" id="logoutBtn" title="清除這台裝置記住的通行碼">登出</button>
     <button class="btn" id="previewBtn">預覽</button>
     <button class="btn primary" id="publishBtn">發布</button>
@@ -509,6 +521,7 @@ function loadData(d){
   ABOUT=pg("關於").map(p=>({id:p.id,h:p.title,b:p.body}));
   ENQ={intro:(d.settings&&d.settings.enqIntro)||"",items:pg("詢問").map(p=>({id:p.id,label:p.title,value:p.body,show:isOn(p.show)}))};
   HOME={feature:(d.settings&&d.settings.feature)||""};
+  CUTMARKS={...(d.cutoutMarks||{})};
   changes=0;
   SNAP=snapshot();
 }
@@ -614,7 +627,7 @@ function missing(i){
   if(!i.out.size) m.push("缺尺寸");
   if(!i.sel.length) m.push("沒勾照片");
   if(i.mainAuto) m.push("主圖未確認");
-  if(!i.bg) m.push(i.bgq?"等待去背":"缺去背主圖");
+  if(!i.bg) m.push(i.bgq?(CUTMARKS[i.no]?"去背處理中・"+CUTMARKS[i.no].who:"等待去背"):"缺去背主圖");
   return m;
 }
 
@@ -1364,8 +1377,8 @@ function openEditor(i){
    <fieldset><legend>官網照片</legend>
      <div id="photos">${photos()}</div></fieldset>
    <fieldset><legend>去背主圖（列表和首頁用）</legend>
-     <p class="hint">按「加入去背待辦」後，在手機叫筆電的 Claude 或公司的 Cowork「處理官網去背待辦」，做完會自動出現在這裡。</p>
-     <div class="cutout">${i.bg?`<img src="${i.bg}" alt="去背主圖">已完成`:i.bgq?`<span class="flag">等待去背</span>`:`<span class="flag">還沒有</span>`}
+     <p class="hint">按「加入去背待辦」後，叫 Claude「處理去背待辦」。做好會在控制台跳出總表（原圖｜成品），你按「全部寫入」才會存，存完自動更新預覽。</p>
+     <div class="cutout">${i.bg?`<img src="${i.bg}" alt="去背主圖">已完成`:i.bgq?`<span class="flag">${CUTMARKS[i.no]?"去背處理中・"+esc(CUTMARKS[i.no].who):"等待去背"}</span>`:`<span class="flag">還沒有</span>`}
        ${i.photos?`<button type="button" class="btn small" id="mkbg">${i.bg?"重做":i.bgq?"取消待辦":"加入去背待辦"}</button>
        <button type="button" class="btn small" id="usemain">直接用主圖</button>`:`<span class="hint" style="margin:0">先在典藏資料庫拍照上傳</span>`}</div></fieldset>
    <fieldset><legend>官網大分類</legend>${(()=>{const t=tops().find(t=>(t.src||[]).includes(i.cat));
@@ -1433,7 +1446,7 @@ function openEditor(i){
     const first=(all&&all[0]&&all[0].id)||coverId(i.no);
     if(first){sel=[first];mainAuto=true;phMode="order";redrawPh();toast("已先用第一張當主圖，可以在「官網照片」換");}};
   if($("#mkbg"))$("#mkbg").onclick=()=>{i.bgq=!i.bgq||!!i.bg;if(i.bg){i.bg="";i.bgId="";i.bgq=true;}touch();
-    toast(i.bgq?"已加入去背待辦，在手機叫 Claude 或 Cowork「處理官網去背待辦」":"已取消去背待辦");closeDrawer();render();};
+    toast(i.bgq?"已加入去背待辦，叫 Claude「處理去背待辦」":"已取消去背待辦");closeDrawer();render();};
   // 一鍵帶入：只填空白欄位，已經寫好的不蓋掉（2026-11-19 Daniel）
   $("#fromDb").onclick=async()=>{const s=INNER[i.no]||{};
     // 簡述全文不在一開始讀的資料裡（2026-11-24 瘦身），按「帶入」時才向後端讀這一件
@@ -1490,7 +1503,7 @@ const SITE_URL="https://yongle-cabinet.pages.dev";
 let publishing=false, pubBusy=false, pubAsk=null;   // pubAsk：確認畫面在等回答時，關掉對話框＝取消
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function pubShow(title,html,btns,busy){
-  pubBusy=!!busy;
+  pubBusy=!!busy; $(".pubbox").classList.remove("wide");
   $("#pubTitle").textContent=title; $("#pubBody").innerHTML=html;
   const foot=$("#pubFoot"); foot.innerHTML=""; foot.hidden=!btns.length;
   btns.forEach(b=>{let el;
@@ -1528,7 +1541,8 @@ async function postApi(body){
   if(!d.ok){ const e=new Error(d.error||"後端回報失敗"); e.auth=!!d.auth; throw e; }
   return d;
 }
-async function runPublish(target){
+// opts.auto（只限預覽）：不跳確認畫面直接送（去背寫入後自動更新預覽用）；opts.note：完成畫面最上面加一句
+async function runPublish(target,opts={}){
   if(publishing)return;
   if(!SNAP){ toast("資料還沒讀好，請稍等再按"); return; }
   const isSite=target==="site", name=isSite?"正式官網":"預覽";
@@ -1541,7 +1555,7 @@ async function runPublish(target){
     const chk=await pubCall(target,true);
     const photoLine=chk.missing?`要送約 ${Math.ceil(chk.missing/2)} 張照片（第一次送照片比較久，每 4 分半會自動接著送）`:"照片都已經在倉庫裡了";
     const info=`<p class="big">公開 <b>${chk.items}</b> 件・分組 <b>${chk.groups}</b> 個・照片 <b>${chk.photos}</b> 張</p><p>${photoLine}</p>`;
-    const go=await new Promise(done=>{ const res=v=>{ pubAsk=null; done(v); }; pubAsk=done;
+    const go=(opts.auto&&!isSite)?true:await new Promise(done=>{ const res=v=>{ pubAsk=null; done(v); }; pubAsk=done;
       if(isSite) pubShow(title,`<p class="alarm">按下確定後，<b>客人在 ${esc(SITE_URL.replace("https://",""))} 會直接看到</b>這次的內容。建議先按「預覽」看過。</p>${info}${warnHtml(chk.warnings)}`,
         [{label:"退回舊版…",left:true,fn:()=>{res(false);setTimeout(runHistory,0);}},{label:"取消",fn:()=>res(false)},{label:"確定發布到正式官網",primary:true,fn:()=>res(true)}]);
       else pubShow(title,`<p>預覽只有知道網址的人看得到，不影響正式官網。</p>${info}${warnHtml(chk.warnings)}`,
@@ -1561,7 +1575,7 @@ async function runPublish(target){
     }
     if(isSite){ changes=0; paintPending(); }
     const url=SITE_URL+(isSite?"/":"/?preview");
-    pubShow(title,`<p class="ok">${isSite?"正式官網已更新":"預覽已更新"}：${d.items} 件</p>`+
+    pubShow(title,(opts.note?`<p>${opts.note}</p>`:"")+`<p class="ok">${isSite?"正式官網已更新":"預覽已更新"}：${d.items} 件</p>`+
       `<p>${sent?`這次送了 ${sent} 份照片檔。`:"照片沒有變動。"}${isSite?"客人那邊最慢約 1 分鐘後會看到新內容。":""}</p>`+
       (failed.length?`<p class="alarm">有 ${failed.length} 張照片送不出去（可能已從 Drive 刪掉），這次先不放，見下方提醒。</p>`:"")+
       warnHtml(d.warnings),
@@ -1569,7 +1583,7 @@ async function runPublish(target){
   }catch(e){
     pubBusy=false;
     if(e.auth){ $("#pubDlg").hidden=true; localStorage.removeItem(LS_PASS); localStorage.removeItem(LS_CACHE); _closeDrawer(); view.innerHTML=""; setSync(""); SNAP=null; showLogin(e.message); return; }
-    pubShow(title,`<p class="alarm">${name}沒有更新：${esc(e.message)}</p><p>試算表裡的資料不受影響，可以稍後再按一次。</p>`,[{label:"關閉",fn:pubClose}]);
+    pubShow(title,(opts.note?`<p>${opts.note}</p>`:"")+`<p class="alarm">${name}沒有更新：${esc(e.message)}</p><p>試算表裡的資料不受影響，可以稍後再按一次。</p>`,[{label:"關閉",fn:pubClose}]);
   }finally{ publishing=false; pubBusy=false; }
 }
 // 退回舊版（2026-11-25）：正式官網每次發布，舊的 site.json 會自動留一份；這裡列出來、選一版換回去
@@ -1611,12 +1625,229 @@ async function runHistory(){
     pubShow(title,`<p class="alarm">沒有退回：${esc(e.message)}</p><p>正式官網維持原樣。</p>`,[{label:"關閉",fn:pubClose}]);
   }finally{ publishing=false; pubBusy=false; pubAsk=null; }
 }
+// ── 去背收件（2026-11-25 去背一條龍）
+// Claude 用 Gemini 描好輪廓後，在這個（已登入的）分頁呼叫 window.cutoutReceive(編號, 輪廓字串, 雜湊)。
+// 這裡自己讀原圖、合成、把成品 PNG 解碼回來逐點驗證，結果放進總表；Daniel 按「全部寫入」才存進 Drive、填 AG，
+// 存完自動更新預覽（正式發布 Daniel 自己按）。通行碼和上傳都在這頁完成，不經過 Claude。
+// 紅線：離邊緣 ≥3 像素的器物區＝原圖像素、0 差異；最外 2 像素漸層（1/3、2/3）；其餘填底色 #F2F0EC。
+// 合成公式跟去背技能 guanwang-quba 的 C3 程式相同（Chebyshev 距離、floor(原圖×t＋底色×(1−t)＋0.5)）。
+// 輪廓字串：逐列，器物段寫「起點36進位-長度36進位」，同列多段用「.」，列與列用「|」，跟上一列相同的 n 列寫「*n」（十進位）。
+// 雜湊：對每個像素的 0/1 依序 h=(h*31+v)>>>0。
+const CUT_BG=[242,240,236];
+let CUTMARKS={};            // 處理中標記 {編號:{who,at}}（後端指令碼屬性，2 小時失效）
+const CUTQ=new Map();       // 收到的件：編號 → {no,name,src,ok,err,st,origUrl,outUrl,outBlob,maskBlob,take}
+let cutting=false;
+const cutSrc=i=>i.sel[0]||coverId(i.no);
+const lh3=id=>`https://lh3.googleusercontent.com/d/${encodeURIComponent(id)}=s0`;
+const cutTodo=()=>ITEMS.filter(i=>i.bgq);
+function cutDecode(rle,W,H){
+  const rows=[];
+  for(const t of String(rle).trim().split("|")){
+    if(t[0]==="*"){const n=parseInt(t.slice(1),10); if(!(n>0)||!rows.length)throw new Error("輪廓字串格式不對（*n）"); for(let k=0;k<n;k++)rows.push(rows[rows.length-1]);}
+    else rows.push(t);
+  }
+  if(rows.length!==H)throw new Error(`輪廓有 ${rows.length} 列，原圖高 ${H}，對不上`);
+  const m=new Uint8Array(W*H);
+  rows.forEach((r,y)=>{ if(!r)return; r.split(".").forEach(s=>{const p=s.split("-"), x0=parseInt(p[0],36), len=parseInt(p[1],36);
+    if(p.length!==2||!(x0>=0)||!(len>0)||x0+len>W)throw new Error(`輪廓第 ${y+1} 列超出原圖寬度 ${W}`); m.fill(1,y*W+x0,y*W+x0+len);});});
+  return m;
+}
+function cutHash(m){ let h=0; for(let k=0;k<m.length;k++)h=(h*31+m[k])>>>0; return h; }
+// 器物連通區塊（8 方向相連）：回傳每塊的像素數
+function cutParts(m,W,H){
+  const seen=new Uint8Array(W*H), stack=new Int32Array(W*H), sizes=[];
+  for(let s=0;s<m.length;s++){ if(!m[s]||seen[s])continue;
+    let top=0,n=0; stack[top++]=s; seen[s]=1;
+    while(top){ const p=stack[--top]; n++; const x=p%W, y=(p-x)/W;
+      for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){ const xx=x+dx, yy=y+dy;
+        if(xx<0||yy<0||xx>=W||yy>=H)continue; const q=yy*W+xx; if(m[q]&&!seen[q]){seen[q]=1;stack[top++]=q;} } }
+    sizes.push(n); }
+  return sizes.sort((a,b)=>b-a);
+}
+// Chebyshev 距離（上限 3），跟技能的 numpy 寫法一樣：圖邊不算背景
+function cutDist(m,W,H){
+  let d=new Uint8Array(W*H); for(let k=0;k<d.length;k++)d[k]=m[k]?3:0;
+  for(const k of [1,2]){ const nd=d.slice();
+    for(let y=0;y<H;y++)for(let x=0;x<W;x++){ const p=y*W+x; if(d[p]<=k)continue;
+      let near=false;
+      for(let dy=-1;dy<=1&&!near;dy++)for(let dx=-1;dx<=1;dx++){ const xx=x+dx, yy=y+dy;
+        if(xx>=0&&yy>=0&&xx<W&&yy<H&&d[yy*W+xx]===k-1){near=true;break;} }
+      if(near)nd[p]=k; }
+    d=nd; }
+  return d;
+}
+const loadImg=url=>new Promise((res,rej)=>{const im=new Image(); im.onload=()=>res(im); im.onerror=()=>rej(new Error("圖片解不開")); im.src=url;});
+function pixels(im,W,H){ const cv=document.createElement("canvas"); cv.width=W; cv.height=H;
+  const cx=cv.getContext("2d",{willReadFrequently:true}); cx.drawImage(im,0,0); return cx.getImageData(0,0,W,H); }
+const toPng=(data,W,H)=>{ const cv=document.createElement("canvas"); cv.width=W; cv.height=H; cv.getContext("2d").putImageData(data,0,0);
+  return new Promise((res,rej)=>cv.toBlob(b=>b?res(b):rej(new Error("做不出 PNG")),"image/png")); };
+const toB64=blob=>new Promise((res,rej)=>{const fr=new FileReader(); fr.onload=()=>res(String(fr.result).split(",")[1]); fr.onerror=()=>rej(fr.error); fr.readAsDataURL(blob);});
+function cutFree(x){ if(!x)return; [x.origUrl,x.outUrl].forEach(u=>{if(u)URL.revokeObjectURL(u);}); }
+function cutPut(x){ cutFree(CUTQ.get(x.no)); CUTQ.set(x.no,x); cutPaint(); }
+
+async function cutBuild(no,rle,hash,opts){
+  const i=byNo(no);
+  if(!i)throw new Error("找不到品項 "+no);
+  if(!i.bgq)throw new Error("這件不在去背待辦");
+  const src=cutSrc(i);
+  if(!src)throw new Error("這件沒有主圖");
+  if(opts.src&&opts.src!==src)throw new Error(`主圖對不上：控制台是 ${src}，輪廓是照 ${opts.src} 描的`);
+  const x={no,name:i.out.zh||i.name,src,ok:false,err:"",st:{},take:true};
+  try{
+    // 讀原圖：Google 偶爾回 429（請求太多）或 5xx，等一下再試，最多 3 次
+    let r;
+    for(const wait of [0,2000,5000]){ if(wait)await sleep(wait);
+      try{ r=await fetch(lh3(src),{cache:"no-store"}); }catch(e){ r=null; continue; }
+      if(r.ok||(r.status!==429&&r.status<500))break; }
+    if(!r)throw new Error("讀不到原圖（網路或權限）");
+    if(!r.ok)throw new Error("讀不到原圖（HTTP "+r.status+"）");
+    const ob=await r.blob(); x.origUrl=URL.createObjectURL(ob);
+    const im=await loadImg(x.origUrl), W=im.naturalWidth, H=im.naturalHeight;
+    const O=pixels(im,W,H).data;
+    const m=cutDecode(rle,W,H), h=cutHash(m);
+    if(hash!==undefined&&hash!==null&&String(hash)!==String(h))throw new Error(`輪廓雜湊對不上（收到 ${hash}，算出 ${h}），資料可能傳漏了`);
+    const total=W*H, fg=m.reduce((a,v)=>a+v,0), bgRatio=1-fg/total;
+    const parts=cutParts(m,W,H), maxParts=opts.parts||(/一對|對聯|聯/.test(x.name)?2:1);
+    Object.assign(x.st,{W,H,hash:h,bytesIn:ob.size,bgRatio:Math.round(bgRatio*1000)/10,parts:parts.length});
+    if(bgRatio<0.1||bgRatio>0.9)throw new Error(`背景比例 ${x.st.bgRatio}% 不合理（要在 10%～90%）`);
+    if(parts.length>maxParts)throw new Error(`器物分成 ${parts.length} 塊（預期最多 ${maxParts} 塊）`);
+    if(parts.some(n=>n<total*0.002))throw new Error("有太小的器物碎塊（小於畫面 0.2%）");
+    const d=cutDist(m,W,H), out=new ImageData(W,H), P=out.data;
+    let core=0;
+    for(let p=0,q=0;p<total;p++,q+=4){ const k=d[p];
+      if(k>=3){P[q]=O[q];P[q+1]=O[q+1];P[q+2]=O[q+2];core++;}
+      else{ const t=k/3; for(let c=0;c<3;c++)P[q+c]=Math.floor(O[q+c]*t+CUT_BG[c]*(1-t)+0.5); }
+      P[q+3]=255; }
+    x.outBlob=await toPng(out,W,H);
+    const mk=new ImageData(W,H); for(let p=0,q=0;p<total;p++,q+=4){const v=m[p]?255:0;mk.data[q]=mk.data[q+1]=mk.data[q+2]=v;mk.data[q+3]=255;}
+    x.maskBlob=await toPng(mk,W,H);
+    // 驗證：把成品 PNG 解碼回來，核心像素逐點比原圖；整張也要跟合成結果一模一樣
+    x.outUrl=URL.createObjectURL(x.outBlob);
+    const R=pixels(await loadImg(x.outUrl),W,H).data;
+    let diff=0, all=0;
+    for(let p=0,q=0;p<total;p++,q+=4){
+      const same=R[q]===P[q]&&R[q+1]===P[q+1]&&R[q+2]===P[q+2]&&R[q+3]===255;
+      if(!same)all++;
+      if(d[p]>=3&&(R[q]!==O[q]||R[q+1]!==O[q+1]||R[q+2]!==O[q+2]))diff++; }
+    Object.assign(x.st,{core,diff,allDiff:all,bytes:x.outBlob.size});
+    if(diff||all)throw new Error(`驗證沒過：核心像素差異 ${diff}、整張差異 ${all}（不放寬，這件標失敗）`);
+    x.ok=true;
+  }catch(e){ x.err=e.message||String(e); }
+  return x;
+}
+
+function cutPaint(){
+  const b=$("#cutBtn"); if(!b)return;
+  const n=SNAP?cutTodo().length:0, got=[...CUTQ.values()].filter(x=>x.ok).length;
+  b.hidden=!(n||CUTQ.size);
+  b.textContent=got?`去背總表 ${got}`:`去背待辦 ${n}`;
+  b.className="btn small"+(got?" primary":"");
+}
+function cutReviewHtml(){
+  const xs=[...CUTQ.values()], ok=xs.filter(x=>x.ok), take=ok.filter(x=>x.take);
+  const waiting=cutTodo().filter(i=>!CUTQ.has(i.no));
+  const st=x=>x.st.core!==undefined?`${x.st.W}×${x.st.H}・核心像素 ${x.st.core.toLocaleString()}・差異 ${x.st.diff}・器物 ${x.st.parts} 塊・背景 ${x.st.bgRatio}%`:(x.st.W?`${x.st.W}×${x.st.H}`:"");
+  return (xs.length?`<p>收到 ${xs.length} 件：可以寫入 <b>${ok.length}</b> 件${xs.length>ok.length?`、失敗 <b>${xs.length-ok.length}</b> 件`:""}。`+
+      `對照原圖｜成品，不要的取消勾選，按「全部寫入」才會存進 Drive、填去背主圖，存完自動更新預覽。</p>`:`<p>還沒收到任何去背成品。</p>`)+
+    xs.map(x=>`<div class="cutrow ${x.ok?"":"bad"}"><div class="cuthd">${x.ok?`<label><input type="checkbox" data-cut="${esc(x.no)}" ${x.take?"checked":""}>${esc(x.name)}</label>`:`<b>${esc(x.name)}</b>`}
+        <span class="cutst">${esc(x.no)}${st(x)?"・"+st(x):""}</span></div>
+      ${x.ok?"":`<p class="alarm" style="margin:6px 0 0">去背失敗：${esc(x.err)}。這件維持「等待去背」。</p>`}
+      ${x.origUrl||x.outUrl?`<div class="cutpair">${x.origUrl?`<figure><a href="${x.origUrl}" target="_blank" rel="noopener"><img src="${x.origUrl}" alt="原圖"></a><figcaption>原圖</figcaption></figure>`:""}${x.outUrl?`<figure><a href="${x.outUrl}" target="_blank" rel="noopener"><img src="${x.outUrl}" alt="成品"></a><figcaption>成品（點圖看原尺寸）</figcaption></figure>`:""}</div>`:""}</div>`).join("")+
+    (waiting.length?`<p class="hint">還在等的 ${waiting.length} 件：${waiting.map(i=>esc(i.out.zh||i.name)+(CUTMARKS[i.no]?`（處理中・${esc(CUTMARKS[i.no].who)}）`:"")).join("、")}</p>`:"")+
+    `<details class="cutpaste"><summary>貼上輪廓資料（給 Claude 備用）</summary><textarea id="cutIn" placeholder='{"no":"ZH-…","rle":"…","hash":123}' spellcheck="false"></textarea>
+      <button type="button" class="btn small" id="cutInGo">收件</button></details>`;
+}
+let cutOpen=false;
+function cutoutReview(){
+  if(publishing||cutting)return false;
+  const ok=[...CUTQ.values()].filter(x=>x.ok), take=ok.filter(x=>x.take).length;
+  const close=()=>{cutOpen=false;pubClose();};
+  pubShow("去背總表",cutReviewHtml(),[
+    ...(CUTQ.size?[{label:"全部放掉",left:true,fn:()=>{CUTQ.forEach(cutFree);CUTQ.clear();cutPaint();cutoutReview();}}]:[]),
+    {label:"稍後再說",fn:close},
+    ...(ok.length?[{label:`全部寫入（${take} 件）`,primary:true,fn:()=>cutoutCommit()}]:[])]);
+  $(".pubbox").classList.add("wide"); cutOpen=true;
+  // 游標停在「稍後再說」，不要停在「全部寫入」：免得不小心按到 Enter／空白鍵就寫入（2026-11-25 測試時發生過）
+  [...$("#pubFoot").children].find(b=>b.textContent==="稍後再說").focus();
+  $("#pubBody").querySelectorAll("[data-cut]").forEach(c=>c.onchange=()=>{const x=CUTQ.get(c.dataset.cut); if(x)x.take=c.checked;
+    const b=$("#pubFoot .primary"); if(b)b.textContent=`全部寫入（${[...CUTQ.values()].filter(y=>y.ok&&y.take).length} 件）`;});
+  $("#cutInGo").onclick=async()=>{ let list;
+    try{ list=JSON.parse($("#cutIn").value); }catch(e){ toast("看不懂貼上的資料（要是 JSON）"); return; }
+    for(const o of [].concat(list)) await cutoutReceive(o.no,o.rle,o.hash,o);
+    cutoutReview(); };
+  return true;
+}
+$("#pubDlg").addEventListener("click",e=>{ if(e.target.id==="pubDlg")cutOpen=false; });
+async function cutoutReceive(no,rle,hash,opts){
+  if(!SNAP)throw new Error("控制台資料還沒讀好");
+  const x=await cutBuild(String(no||""),rle,hash,opts||{});
+  cutPut(x);
+  if(!publishing&&!cutting&&(cutOpen||$("#pubDlg").hidden))cutoutReview();
+  return {no:x.no,ok:x.ok,error:x.err||undefined,...x.st};
+}
+function cutoutFail(no,reason){
+  const i=byNo(no); if(!i)throw new Error("找不到品項 "+no);
+  cutPut({no,name:i.out.zh||i.name,src:cutSrc(i),ok:false,err:String(reason||"Gemini 描不出輪廓"),st:{},take:false});
+  if(!publishing&&!cutting&&(cutOpen||$("#pubDlg").hidden))cutoutReview();
+  return {no,ok:false};
+}
+// 寫入後把控制台手上的資料也換成新的檔案 ID，免得自動存檔把「待辦」寫回去
+function cutApply(i,id){
+  i.bgId=id; i.bg=driveThumb(id); i.bgq=false; i.raw.bg=id;
+  if(SNAP&&SNAP.items[i.no])SNAP.items[i.no].bg=id;
+  const r=DATA.items.find(x=>x.id===i.no); if(r)r.web={...(r.web||{}),bg:id};
+  delete CUTMARKS[i.no]; DATA.cutoutMarks={...CUTMARKS}; saveCache(DATA);
+}
+async function cutoutCommit(){
+  if(cutting||publishing)return {ok:false,error:"正在處理別的事，請稍後"};
+  const list=[...CUTQ.values()].filter(x=>x.ok&&x.take);
+  if(!list.length){ toast("沒有勾選要寫入的"); return {ok:false,error:"沒有勾選要寫入的"}; }
+  cutting=true; cutOpen=false;
+  const done=[], fail=[], title="寫入去背圖";
+  try{
+    pubShow(title,busyHtml("先把剛剛的修改存好…"),[],true);
+    await flushSave();
+    for(const [k,x] of list.entries()){
+      pubShow(title,busyHtml(`寫入第 ${k+1}／${list.length} 件：${x.name}…`),[],true);
+      try{
+        const i=byNo(x.no);
+        if(!i||!i.bgq)throw new Error("已經不在去背待辦");
+        if(cutSrc(i)!==x.src)throw new Error("主圖換過了，輪廓對不上");
+        const d=await postApi({action:"webSaveCutout",id:x.no,src:x.src,png:await toB64(x.outBlob),mask:await toB64(x.maskBlob)});
+        cutApply(i,d.bg); CUTQ.delete(x.no); cutFree(x); done.push({no:x.no,name:x.name,bg:d.bg,replaced:d.replaced});
+      }catch(e){ if(e.auth)throw e; x.ok=false; x.err="寫入失敗："+e.message; fail.push({no:x.no,name:x.name,error:e.message}); }
+    }
+  }catch(e){
+    cutting=false; pubBusy=false;
+    if(e.auth){ $("#pubDlg").hidden=true; localStorage.removeItem(LS_PASS); localStorage.removeItem(LS_CACHE); _closeDrawer(); view.innerHTML=""; setSync(""); SNAP=null; showLogin(e.message); return {ok:false,error:e.message}; }
+    pubShow(title,`<p class="alarm">沒有寫入：${esc(e.message)}</p>`,[{label:"關閉",fn:pubClose}]);
+    return {ok:false,error:e.message,written:done};
+  }finally{ cutting=false; pubBusy=false; }
+  cutPaint(); render();
+  const failHtml=fail.length?`<p class="alarm">有 ${fail.length} 件沒寫入：${fail.map(f=>esc(f.name)+"（"+esc(f.error)+"）").join("、")}</p>`:"";
+  if(done.length) await runPublish("preview",{auto:true,note:`已寫入 ${done.length} 件去背圖：${done.map(x=>esc(x.name)).join("、")}`+failHtml});
+  else pubShow(title,failHtml,[{label:"關閉",fn:pubClose}]);
+  return {ok:!fail.length,written:done,failed:fail};
+}
+// 給 Claude 用的（在已登入的控制台分頁呼叫）
+window.cutoutTodo=()=>{ if(!SNAP)throw new Error("控制台資料還沒讀好");
+  return cutTodo().map(i=>{const s=cutSrc(i);return {no:i.no,name:i.out.zh||i.name,cat:CATS[i.cat],src:s,url:s?lh3(s):"",mark:CUTMARKS[i.no]||null,received:CUTQ.has(i.no)};}); };
+window.cutoutMark=async(nos,who,on=true)=>{ const d=await postApi({action:"webCutoutMark",ids:[].concat(nos),who,on});
+  CUTMARKS={...(d.marks||{})}; if(DATA){DATA.cutoutMarks={...CUTMARKS};saveCache(DATA);} cutPaint(); if($("#pubDlg").hidden)render(); return CUTMARKS; };
+window.cutoutReceive=cutoutReceive;
+window.cutoutFail=cutoutFail;
+window.cutoutReview=cutoutReview;
+window.cutoutCommit=cutoutCommit;
+window.cutoutStatus=()=>[...CUTQ.values()].map(x=>({no:x.no,name:x.name,ok:x.ok,take:x.take,error:x.err||undefined,...x.st}));
+$("#cutBtn").onclick=()=>cutoutReview();
+
 $("#previewBtn").onclick=()=>runPublish("preview");
 $("#publishBtn").onclick=()=>runPublish("site");
 
 function render(){
   document.querySelectorAll(".tab").forEach(t=>t.setAttribute("aria-selected",String(t.dataset.t===tab)));
   ({items:renderItems,order:renderOrder,home:renderHome,groups:renderEx,cata:renderCata,about:renderAbout,enq:renderEnq})[tab]();
+  cutPaint();
 }
 document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{tab=t.dataset.t;render();});
 

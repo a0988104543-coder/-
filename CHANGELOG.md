@@ -7,6 +7,14 @@
 
 ---
 
+## 2026-11-26 00:15｜Claude Code（終端機）｜官網去背一條龍：後端存去背圖、控制台收件、處理中標記
+
+- **Apps Script**（Daniel 同意；推前 clasp pull 比對＝原檔；原檔 `文物\apps-script_備份\程式碼_原檔_20261125_去背前.js`）：新增 `webSaveCutout`（POST：品項編號＋主圖 ID＋成品／輪廓 PNG base64 → 品項 Drive 資料夾下建立或沿用「官網去背」，存 `<編號>_bg.png`、`<編號>_mask.png` → 寫「去背主圖」欄；寫前確認該格仍是「待辦」、官網照片第一張沒換，否則不寫；同名舊檔在寫好後才丟 Drive 垃圾桶）、`webCutoutMark`（「處理中・筆電／公司／手機」標記，存指令碼屬性 `CUTOUT_MARKS`，2 小時失效，不寫試算表）、`webData` 多帶 `cutoutMarks`、自我測試 `webCutoutSelfTest`（編輯器實跑全部通過）。**「官網控制台專用」部署換第 31 版**；典藏資料庫第 25 版沒動。
+- **`webctl/index.html`**（本機原檔 git `086bed7` 之後）：去背收件。Claude 在已登入的控制台分頁呼叫 `window.cutoutReceive(編號, 輪廓字串, 雜湊)`，控制台自己讀 Drive 原圖、合成（Chebyshev 漸層 1/3、2/3，≥3 像素用原圖，底色 #F2F0EC）、PNG 解碼回來驗證核心像素 0 差異 → 「去背總表」原圖｜成品並排，可個別取消 → Daniel 按「全部寫入」才存，存完自動更新預覽（正式發布仍要自己按）。另有 `cutoutTodo`、`cutoutMark`、`cutoutFail`、`cutoutReview`、`cutoutCommit`、`cutoutStatus`；頂部「去背待辦／去背總表」按鈕；品項顯示「去背處理中・筆電」。總表游標預設停在「稍後再說」。通行碼、上傳都不經過 Claude。
+- 試算表結構、典藏資料庫前端都沒動。
+
+---
+
 ## 2026-11-25 21:50｜Claude Code（終端機）｜官網發布提速（逐檔 check → 倉庫清單）、單品頁照片順序與小圖滑動
 
 - **Apps Script**（Daniel 同意；推前 clasp pull 比對＝本機；原檔 `文物\apps-script_備份\程式碼_原檔_20261125_計時前.js`）：`webPublish` 改用收貨窗口新的 `op=list` 一次拿倉庫照片清單比對（失敗自動退回舊的逐檔 `check`）；加分段計時（回傳 `timing`、執行記錄「webPublish 計時」）；新增量測用 `webPublishTiming`（只讀＋只檢查）。實測「只檢查」50.4 秒 → 2.7 秒（186 個檔，逐檔每個約 0.25 秒）。**「官網控制台專用」部署換第 30 版**；典藏資料庫第 25 版沒動。
