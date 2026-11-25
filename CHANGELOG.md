@@ -7,6 +7,12 @@
 
 ---
 
+## 2026-11-26 00:50｜Claude Code（終端機）｜官網控制台去背讀原圖改用 =d
+
+- **`webctl/index.html`**（本機原檔 git `825fb38`）：去背收件讀原圖從 `lh3…/d/<ID>=s0` 改成 `=d`。手機 claude.ai 發現 ZH-1151031-012 用 `=s0` 少 26 bytes；Claude Code 比對確認是 Google 改寫檔頭（壓縮影像資料相同、像素不變），但不保證每次如此（PNG 會整個重新壓縮），`=d` 才是原檔且同樣允許跨網域讀。029 重測：原檔 352,876 bytes、核心像素 0 差異、成品與先前逐點相同。
+
+---
+
 ## 2026-11-26 00:15｜Claude Code（終端機）｜官網去背一條龍：後端存去背圖、控制台收件、處理中標記
 
 - **Apps Script**（Daniel 同意；推前 clasp pull 比對＝原檔；原檔 `文物\apps-script_備份\程式碼_原檔_20261125_去背前.js`）：新增 `webSaveCutout`（POST：品項編號＋主圖 ID＋成品／輪廓 PNG base64 → 品項 Drive 資料夾下建立或沿用「官網去背」，存 `<編號>_bg.png`、`<編號>_mask.png` → 寫「去背主圖」欄；寫前確認該格仍是「待辦」、官網照片第一張沒換，否則不寫；同名舊檔在寫好後才丟 Drive 垃圾桶）、`webCutoutMark`（「處理中・筆電／公司／手機」標記，存指令碼屬性 `CUTOUT_MARKS`，2 小時失效，不寫試算表）、`webData` 多帶 `cutoutMarks`、自我測試 `webCutoutSelfTest`（編輯器實跑全部通過）。**「官網控制台專用」部署換第 31 版**；典藏資料庫第 25 版沒動。

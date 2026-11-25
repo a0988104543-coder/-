@@ -1638,7 +1638,8 @@ let CUTMARKS={};            // 處理中標記 {編號:{who,at}}（後端指令�
 const CUTQ=new Map();       // 收到的件：編號 → {no,name,src,ok,err,st,origUrl,outUrl,outBlob,maskBlob,take}
 let cutting=false;
 const cutSrc=i=>i.sel[0]||coverId(i.no);
-const lh3=id=>`https://lh3.googleusercontent.com/d/${encodeURIComponent(id)}=s0`;
+// 原圖用 =d（原檔 bytes）。=s0 有時會被 Google 改寫檔頭（2026-11-26 ZH-1151031-012 少 26 bytes），PNG 甚至整個重新壓縮
+const lh3=id=>`https://lh3.googleusercontent.com/d/${encodeURIComponent(id)}=d`;
 const cutTodo=()=>ITEMS.filter(i=>i.bgq);
 function cutDecode(rle,W,H){
   const rows=[];
