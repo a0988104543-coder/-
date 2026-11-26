@@ -235,6 +235,16 @@ legend{font-weight:600;margin-bottom:8px;font-size:13px}
 .ctool .btn{min-height:30px;padding:2px 10px;font-size:12px}
 .ctool select{font-size:12px;border:1px solid var(--line);border-radius:6px;padding:4px;max-width:14em}
 .seriesChips{display:inline-flex;flex-wrap:wrap;gap:4px 26px;align-items:center}
+/* 系列列（2026-11-26 Daniel）：平常收起只顯示目前系列；展開後一排可左右拉，兩端淡出，電腦加 ‹ › */
+.shop-filters .stoggle.scur{font-size:13px;color:var(--ink)}
+.sstrip{position:relative;width:min(100%,40em);display:flex;align-items:center;gap:4px}
+.sstrip .sscroll{flex:1;display:flex;gap:26px;overflow-x:auto;scrollbar-width:none;padding:2px 18px;
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 18px,#000 calc(100% - 18px),transparent);mask-image:linear-gradient(90deg,transparent,#000 18px,#000 calc(100% - 18px),transparent)}
+.sstrip .sscroll::-webkit-scrollbar{display:none}
+.sstrip .sscroll button{flex:none;white-space:nowrap;font-size:13px}
+.shop-filters .sstrip .sarr{flex:none;width:26px;font-size:18px;border:0;color:var(--muted);padding:0}
+.shop-filters .sstrip .sarr[disabled]{opacity:.25;cursor:default}
+@media (hover:none){.shop-filters .sstrip .sarr{display:none}}
 .shop-filters.editing .seriesChips{gap:6px 10px}
 .sepbar{color:var(--line);margin:0 2px}
 .shop-filters .stoggle{color:var(--muted)}
@@ -528,6 +538,7 @@ function loadData(d){
   ABOUT=pg("關於").map(p=>({id:p.id,h:p.title,b:p.body}));
   ENQ={intro:(d.settings&&d.settings.enqIntro)||"",items:pg("詢問").map(p=>({id:p.id,label:p.title,value:p.body,show:isOn(p.show)}))};
   HOME={feature:(d.settings&&d.settings.feature)||""};
+  SHOWALL=String((d.settings&&d.settings.showAll)||"").trim()!=="關";
   CUTMARKS={...(d.cutoutMarks||{})};
   changes=0;
   SNAP=snapshot();
@@ -553,7 +564,7 @@ function pageRows(){
     ...ABOUT.map((a,k)=>row("關於",k,{id:a.id,title:str(a.h),body:str(a.b),show:"TRUE"})),
     ...ENQ.items.map((e,k)=>row("詢問",k,{id:e.id,title:str(e.label),body:str(e.value),show:tf(e.show)}))];
 }
-const settingVals=()=>({feature:str(HOME.feature),enqIntro:str(ENQ.intro)});
+const settingVals=()=>({feature:str(HOME.feature),enqIntro:str(ENQ.intro),showAll:SHOWALL?"":"關"});
 function snapshot(){
   const items={}; ITEMS.forEach(i=>items[i.no]=itemWeb(i));
   return {items,cats:JSON.stringify(catRows()),groups:JSON.stringify(groupRows()),pages:JSON.stringify(pageRows()),settings:settingVals()};
@@ -615,6 +626,8 @@ let changes=0, tab="items", f={cat:"全部",sub:"全部",pub:"全部",q:""}, che
 
 const $=s=>document.querySelector(s), view=$("#view");
 const byNo=no=>ITEMS.find(i=>i.no===no), byCode=c=>ITEMS.find(i=>i.code===c);
+// 展覽地點：沒填就是店裡（2026-11-26 Daniel：展覽＝實體展），跟官網同一個預設
+const PLACE_DEFAULT="永樂翫青行・迪化街", placeOf=g=>String(g.place||"").trim()||PLACE_DEFAULT;
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const thumb=i=>i.photos?`<img class="thumb" src="${P(i.no,1)}" alt="" loading="lazy">`:`<div class="noimg">無照片</div>`;
 function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("on");clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove("on"),2600);}
@@ -641,6 +654,23 @@ function missing(i){
 // 這件屬於哪個官網大分類（直接放在大分類，或放在它底下的子分類）
 const topOf=i=>CATTREE.find(t=>!t.parent&&(t.members.includes(i.code)||CATTREE.some(k=>k.parent===t.id&&k.members.includes(i.code))));
 // 依各大分類的「自動收哪些典藏大分類」重排成員（公開的品項）
+// 系列陳列（2026-11-26 Daniel）：各大分類的「全部」本身當成一個系列，跟系列一起排序（官網分組裡類型＝「全部」的列，
+// 一個大分類一列，只記位置）；還沒排過的大分類沒有這一列，當作排第一。總開關 SHOWALL 一次管四個大分類的「全部」。
+let SHOWALL=true;
+const isAllRow=g=>g.type==="全部";
+function lineup(cat){const L=GROUPS.filter(g=>(g.type==="系列"||isAllRow(g))&&g.cat===cat);
+  if(!L.some(isAllRow))L.unshift({id:"__all",type:"全部",cat,virtual:true});return L;}
+function allCodes(cat){const t=CATTREE.find(c=>c.id===cat);if(!t)return [];
+  const ss=GROUPS.filter(g=>g.type==="系列"&&g.cat===cat);return ORDER.filter(c=>t.members.includes(c)||ss.some(x=>x.members.includes(c)));}
+// 官網上會不會出現在系列列：全部＝總開關開而且有品項；系列＝設成顯示而且有公開品項
+const entryShown=g=>isAllRow(g)?SHOWALL&&allCodes(g.cat).length>0:g.pub&&g.members.some(c=>byCode(c)&&byCode(c).pub);
+const shownLineup=cat=>lineup(cat).filter(entryShown);
+// 大分類排第一的「顯示中」系列；「全部」回傳 ""（一般模式點大分類時打開它）
+function firstEntry(cat){const g=shownLineup(cat)[0];return !g||isAllRow(g)?"":g.id;}
+// 照 ids（含「全部」）重排這個大分類的系列；「全部」第一次被移動時才在官網分組新增一列記位置
+function reorderLineup(cat,ids){
+  ids=ids.map(id=>{if(id!=="__all")return id;const g={id:newCode(),type:"全部",cat,zh:"全部",en:"",from:"",to:"",place:"",intro:"",introEn:"",cover:"",members:[],pub:false,sort:""};GROUPS.push(g);return g.id;});
+  GROUPS=[...GROUPS.filter(g=>!ids.includes(g.id)),...ids.map(id=>GROUPS.find(g=>g.id===id))];}
 function syncTops(){tops().forEach(t=>{t.members=ITEMS.filter(i=>i.pub&&i.code&&(t.src||[]).includes(i.cat)).map(i=>i.code);});}
 function setPub(i,on){
   i.pub=on;
@@ -723,13 +753,16 @@ function renderShop(){
   const img=mainImg;   // 列表用你選的主圖
   // 分類篩選：就在這裡管理（新增、改名、拖曳或箭頭排序、隱藏、刪除、放品項進來）。編輯模式下連隱藏的分類也列出來
   const vis=c=>catEdit||c.show;
-  const shownTops=tops().filter(vis);
-  // 沒有「全部」：沒選系列、也沒選分類時，預設打開第一個分類
-  if(!shopSeries&&!shownTops.find(t=>t.id===shopTop)&&shownTops.length)shopTop=shownTops[0].id;
+  // 大分類自動隱藏（2026-11-26 Daniel）：底下沒有任何顯示中的系列（含「全部」）就不出現；編輯模式照樣全列
+  const shownTops=tops().filter(c=>vis(c)&&(catEdit||shownLineup(c.id).length));
+  if(!shownTops.find(t=>t.id===shopTop)&&shownTops.length){shopTop=shownTops[0].id;shopSeries=catEdit?"":firstEntry(shopTop);}
   const top=CATTREE.find(c=>c.id===shopTop&&vis(c)); if(!top)shopTop=""; shopSub="";
+  // 一般模式只能停在官網看得到的系列；看不到就換成排第一的（總開關關掉時，「全部」也看不到）
+  if(!catEdit&&top){const sl=shownLineup(top.id),cur=shopSeries?sl.find(g=>g.id===shopSeries):sl.find(isAllRow);if(!cur)shopSeries=firstEntry(top.id);}
   // 系列（2026-11-19 Daniel：子分類併進系列，同一層、同一種編輯方式）：每個系列掛在一個大分類底下
   const seriesAll=GROUPS.filter(g=>g.type==="系列"&&g.cat===shopTop), seriesShown=seriesAll.filter(g=>catEdit||g.pub);
   const ser=seriesShown.find(g=>g.id===shopSeries); if(!ser)shopSeries="";
+  const LU=top?lineup(top.id):[];
   const selCat=ser?null:top;
   // 大分類的「全部」＝直接放在大分類的品項，加上它底下各系列的品項
   const inFilter=c=>{ if(shopQ) return true;   // 搜尋時搜全部藏品，不限目前的分類
@@ -755,22 +788,29 @@ function renderShop(){
   const sb=g=>catRename===g.id?`<input class="inl" id="renameInput" value="${esc(g.zh)}" aria-label="系列新名稱">`
     :catEdit?`<button class="cc cs ${g.pub?"":"off"}" data-series="${g.id}" data-id="${g.id}" aria-pressed="${shopSeries===g.id}">${esc(g.zh||"（未命名）")}${g.pub?"":"（隱藏）"}</button>`
     :`<button data-series="${g.id}" aria-pressed="${shopSeries===g.id}">${esc(g.zh)}</button>`;
-  // 系列跟子分類同一排：平常收在「系列 ▸」，按下才展開；選了系列或在編輯模式時自動展開
-  const sOpen=shopSeriesOpen||!!ser||catEdit;
-  const serPart=(seriesShown.length||catEdit)?`<span class="sepbar" aria-hidden="true">｜</span><button class="stoggle" data-stoggle="1" aria-expanded="${sOpen}">系列 ${sOpen?"◂":"▸"}</button>${sOpen?`<span class="seriesChips" id="rowSeries">${seriesShown.map(sb).join("")}${catEdit?(catAdding==="__series"?`<input class="inl" id="addInput" placeholder="新系列名稱" aria-label="新系列名稱">`:`<button class="add" data-addcat="__series">＋ 系列</button>`):""}</span>`:""}`:"";
-  const sSib=ser?seriesAll:[], sIdx=ser?seriesAll.indexOf(ser):-1;
   const sAddable=ser?ITEMS.filter(i=>i.pub&&!ser.members.includes(i.code)):[];
   const sTool=catEdit&&ser&&catRename!==ser.id?`<div class="ctool"><b>系列「${esc(ser.zh)}」</b>
       <button class="btn" data-st="rename">改名</button>
-      <button class="btn" data-st="left" ${sIdx>0?"":"disabled"} aria-label="往左">←</button><button class="btn" data-st="right" ${sIdx<sSib.length-1?"":"disabled"} aria-label="往右">→</button>
+      <button class="btn" data-st="left" ${LU.indexOf(ser)>0?"":"disabled"} aria-label="往左">←</button><button class="btn" data-st="right" ${LU.indexOf(ser)<LU.length-1?"":"disabled"} aria-label="往右">→</button>
       <button class="btn" data-st="show">${ser.pub?"在官網隱藏":"在官網顯示"}</button>
       <button class="btn" data-st="del">${delArm===ser.id?"確定刪除？":"刪除"}</button>
       <button class="btn ${assignMode?"primary":""}" data-assign="1">${assignMode?"完成勾選":"☑ 勾選品項"}</button></div>`:"";
   const sIntro=ser?(catEdit?`<div class="wrapc" style="margin:4px auto 0"><textarea class="inline b" id="serIntro" rows="3" placeholder="系列引言（放在系列頁最上面）" aria-label="系列引言" style="font-size:14px;line-height:1.9;text-align:left">${esc(ser.intro)}</textarea></div>`
       :ser.intro?`<p style="width:min(36em,100%);margin:4px auto 0;font-size:14px;line-height:1.9;text-align:justify">${esc(ser.intro)}</p>`:""):"";
-  // 第二排只剩「全部｜系列 ▸」
-  const subPart=top?fb("",ser?"\u0000":"","全部","sub"):"";
-  const row2=shopQ&&!ser?"":subPart+serPart;
+  // 系列列（2026-11-26 Daniel，取代「全部｜系列 ▸」）：「全部」跟系列同一排、照順序
+  let row2="", row3="";
+  if(top&&!(shopQ&&!ser)){
+    if(catEdit){
+      const ac=g=>`<button class="cc cs ${SHOWALL?"":"off"}" data-series="" data-id="${g.id}" aria-pressed="${!ser}">全部${SHOWALL?"":"（總開關關）"}</button>`;
+      row2=`<span class="seriesChips" id="rowSeries">${LU.map(g=>isAllRow(g)?ac(g):sb(g)).join("")}${catAdding==="__series"?`<input class="inl" id="addInput" placeholder="新系列名稱" aria-label="新系列名稱">`:`<button class="add" data-addcat="__series">＋ 系列</button>`}</span>`;
+    }else{
+      const SL=shownLineup(top.id), curName=ser?ser.zh:"全部";
+      row2=`<button class="stoggle scur" data-stoggle="1" aria-expanded="${shopSeriesOpen}">${esc(curName)} ${shopSeriesOpen?"▴":"▾"}</button>`;
+      if(shopSeriesOpen)row3=`<div class="sstrip"><button class="sarr" data-sarr="-1" aria-label="往左捲">‹</button><div class="sscroll" id="sScroll">${SL.map(g=>isAllRow(g)
+        ?`<button data-series="" aria-pressed="${!ser}">全部</button>`
+        :`<button data-series="${g.id}" aria-pressed="${shopSeries===g.id}">${esc(g.zh)}</button>`).join("")}</div><button class="sarr" data-sarr="1" aria-label="往右捲">›</button></div>`;
+    }
+  }
   const sib=selCat?tops():[], si=selCat?sib.indexOf(selCat):-1;
   const addable=selCat?ITEMS.filter(i=>i.pub&&!selCat.members.includes(i.code)):[];
   const tool=catEdit&&selCat&&catRename!==selCat.id?`<div class="ctool"><b>「${esc(selCat.name)}」</b>
@@ -796,9 +836,11 @@ function renderShop(){
    ${catEdit?"":`<div class="ctlsent"></div>`}<div class="shop-filters ${catEdit?"editing":"ctlbox"}">
      <div class="toolrow"><input class="shopq" id="shopQ" type="search" enterkeyhint="search" value="${esc(shopQ)}" placeholder="⌕ 搜尋" aria-label="搜尋藏品（品名、時代）"><button class="btn small" id="shopQGo">搜尋</button>
        ${catEdit?"":`<button class="btn small ${sortMode?"primary":""}" id="sortBtn">${sortMode?"完成排序":"⇅ 排序"}</button>`}
+       ${catEdit?`<button class="btn small ${SHOWALL?"primary":""}" id="allSw" aria-pressed="${SHOWALL}" title="開＝四個大分類都有「全部」；關＝只顯示建好的系列">「全部」總開關：${SHOWALL?"開":"關"}</button>`:""}
        <button class="btn small" id="catEditBtn">${catEdit?"完成編輯":"✎ 編輯分類・系列"}</button></div>
      <div class="r" id="rowTop">${row1}</div>
      ${row2?`<div class="r sub" id="rowSub">${row2}</div>`:""}
+     ${row3?`<div class="r sub">${row3}</div>`:""}
      ${tool}
      ${sTool}${sIntro}
      ${assignMode?`<div class="ctool" style="background:var(--ok-soft);border-color:var(--ok)">勾選模式：下面列出全部已公開的品項，<b>打勾的屬於「${esc(ser?ser.zh:target.name)}」</b>，點照片勾選或取消。可以用上面的搜尋縮小範圍。</div>`:""}
@@ -814,12 +856,18 @@ function renderShop(){
      </div>`}).join("")}</div></div>`;
   bindSeg();
   let suppressClick=false;
-  view.querySelectorAll(".shop-filters [data-top]").forEach(b=>b.onclick=()=>{if(suppressClick)return;shopTop=b.dataset.top;shopSub="";shopSeries="";delArm=null;renderShop();});
-  view.querySelectorAll(".shop-filters [data-series]").forEach(b=>b.onclick=()=>{if(suppressClick)return;shopSeries=shopSeries===b.dataset.series&&!catEdit?"":b.dataset.series;delArm=null;renderShop();});
+  view.querySelectorAll(".shop-filters [data-top]").forEach(b=>b.onclick=()=>{if(suppressClick)return;shopTop=b.dataset.top;shopSub="";shopSeries=catEdit?"":firstEntry(shopTop);shopSeriesOpen=false;delArm=null;renderShop();});
+  view.querySelectorAll(".shop-filters [data-series]").forEach(b=>b.onclick=()=>{if(suppressClick)return;shopSeries=b.dataset.series;shopSeriesOpen=false;delArm=null;renderShop();});
+  const as=$("#allSw"); if(as)as.onclick=()=>{SHOWALL=!SHOWALL;touch();toast(SHOWALL?"四個大分類都會顯示「全部」":"四個大分類都不顯示「全部」，只顯示建好的系列");renderShop();};
+  const sc=$("#sScroll");
+  if(sc){const arr=[...view.querySelectorAll("[data-sarr]")],upd=()=>{arr[0].disabled=sc.scrollLeft<=2;arr[1].disabled=sc.scrollLeft+sc.clientWidth>=sc.scrollWidth-2;};
+    arr.forEach(b=>b.onclick=()=>sc.scrollBy({left:+b.dataset.sarr*sc.clientWidth*.7,behavior:"smooth"}));sc.onscroll=upd;
+    const on=sc.querySelector('[aria-pressed="true"]');if(on){const a=on.getBoundingClientRect(),b=sc.getBoundingClientRect();sc.scrollLeft+=a.left+a.width/2-(b.left+b.width/2);}upd();}
   const si2=$("#serIntro"); if(si2)si2.onchange=()=>{ser.intro=si2.value;touch();toast("系列引言已更新");};
   view.querySelectorAll("[data-st]").forEach(b=>b.onclick=()=>{const a=b.dataset.st;
     if(a==="rename"){catRename=ser.id;renderShop();return;}
-    if(a==="left"||a==="right"){const o=seriesAll[a==="left"?sIdx-1:sIdx+1],x=GROUPS.indexOf(ser),y=GROUPS.indexOf(o);[GROUPS[x],GROUPS[y]]=[GROUPS[y],GROUPS[x]];touch();renderShop();return;}
+    if(a==="left"||a==="right"){const ids=LU.map(g=>g.id),k=ids.indexOf(ser.id),j=a==="left"?k-1:k+1;if(j<0||j>=ids.length)return;
+      [ids[k],ids[j]]=[ids[j],ids[k]];reorderLineup(top.id,ids);touch();renderShop();return;}
     if(a==="show"){ser.pub=!ser.pub;touch();toast(ser.pub?"官網上會顯示這個系列":"官網上先不顯示這個系列");renderShop();return;}
     if(a==="del"){if(delArm!==ser.id){delArm=ser.id;renderShop();return;}
       GROUPS=GROUPS.filter(x=>x!==ser);ITEMS.forEach(i=>i.groups=i.groups.filter(x=>x!==ser.id));shopSeries="";delArm=null;touch();toast(`已刪除系列「${ser.zh}」，品項本身不受影響`);renderShop();}
@@ -828,11 +876,10 @@ function renderShop(){
   // 系列名稱拖曳排序（編輯模式）
   const rs=$("#rowSeries");
   if(rs&&catEdit)makeSortable(rs,".cs",{grid:true,self:true},ids=>{suppressClick=true;setTimeout(()=>suppressClick=false,0);
-    const before=seriesAll.map(g=>g.id).join();
-    GROUPS=[...GROUPS.filter(g=>!ids.includes(g.id)),...ids.map(id=>GROUPS.find(g=>g.id===id))];   // 只重排這個大分類的系列，其他不動
-    if(before!==ids.join()){touch();toast("系列順序已更新");} renderShop();});
+    const before=LU.map(g=>g.id).join();   // 只重排這個大分類的系列（含「全部」），其他不動
+    if(before!==ids.join()){reorderLineup(top.id,ids);touch();toast("系列順序已更新");} renderShop();});
   view.querySelectorAll(".shop-filters [data-sub]").forEach(b=>b.onclick=()=>{if(suppressClick)return;shopSub=b.dataset.sub;shopSeries="";delArm=null;renderShop();});
-  view.querySelectorAll("[data-stoggle]").forEach(b=>b.onclick=()=>{if(catEdit)return;shopSeriesOpen=!(shopSeriesOpen||!!shopSeries);if(!shopSeriesOpen)shopSeries="";renderShop();});
+  view.querySelectorAll("[data-stoggle]").forEach(b=>b.onclick=()=>{if(catEdit)return;shopSeriesOpen=!shopSeriesOpen;renderShop();});
   $("#catEditBtn").onclick=()=>{catEdit=!catEdit;catRename=catAdding=delArm=null;assignMode=false;renderShop();};
   bindSearch($("#shopQ"),$("#shopQGo"),v=>{if(v===shopQ)return;shopQ=v;renderShop();});
   view.querySelectorAll("[data-assign]").forEach(b=>b.onclick=()=>{assignMode=!assignMode;renderShop();});
@@ -861,9 +908,9 @@ function renderShop(){
       [CATTREE[x],CATTREE[y]]=[CATTREE[y],CATTREE[x]];touch();renderShop();return;}
     if(a==="show"){selCat.show=!selCat.show;touch();toast(selCat.show?"官網上會顯示這個分類":"官網上先不顯示這個分類（品項不受影響）");renderShop();return;}
     if(a==="del"){if(delArm!==selCat.id){delArm=selCat.id;renderShop();return;}
-      const sGone=GROUPS.filter(g=>g.type==="系列"&&g.cat===selCat.id);
+      const sGone=GROUPS.filter(g=>(g.type==="系列"||isAllRow(g))&&g.cat===selCat.id), nS=sGone.filter(g=>!isAllRow(g)).length;
       CATTREE=CATTREE.filter(x=>x!==selCat);GROUPS=GROUPS.filter(g=>!sGone.includes(g));
-      toast(`已刪除「${selCat.name}」${sGone.length?`和底下 ${sGone.length} 個系列`:""}，品項本身不受影響`);
+      toast(`已刪除「${selCat.name}」${nS?`和底下 ${nS} 個系列`:""}，品項本身不受影響`);
       shopTop="";shopSeries="";delArm=null;touch();renderShop();}
   });
   const ca=$("#ctAdd"); if(ca)ca.onchange=()=>{if(!ca.value)return;selCat.members.push(ca.value);touch();toast(`已加入「${selCat.name}」`);renderShop();};
@@ -1035,7 +1082,8 @@ function renderHome(){
        <div style="font-size:19px;letter-spacing:.24em">${esc(exNow.zh)}</div>
        ${exNow.en?`<div style="font-family:'Cormorant Garamond',serif;font-style:italic;color:var(--muted)">${esc(exNow.en)}</div>`:""}
        <div style="font-size:13px">${exNow.from.replace(/-/g,".")} — ${exNow.to.replace(/-/g,".")}</div>
-       <span class="lk" style="align-self:center">進入展覽　→</span>
+       <div style="font-size:13px;color:var(--muted)">${esc(placeOf(exNow))}</div>
+       <span class="lk" style="align-self:center">進入展覽　→</span><span class="lk" style="align-self:center;font-size:12px">來訪方式　→</span>
        <button class="btn small" id="goEx" style="margin-top:6px;font-family:system-ui,sans-serif">到「展覽」分頁編輯</button></div>`
      :`<div class="edit-note" style="margin-top:40px">目前沒有即將展出或現正展出的展覽，首頁下方不顯示展覽資訊</div>`}
    </div>`;
@@ -1098,7 +1146,7 @@ function renderEx(){
      <button class="gr" aria-label="拖曳排序：${esc(x.zh)}">⠿</button>
      <div class="cv">${img(c)?`<img src="${img(c)}" alt="">`:"無展品"}</div>
      <div class="tx"><div style="font-size:16px;letter-spacing:.14em">${esc(x.zh||"（未命名展覽）")}</div>
-       <div class="sub2">${x.from?x.from.replace(/-/g,".")+" — "+(x.to||"").replace(/-/g,"."):"（未定展期）"}　${esc(x.place)}　・展品 ${x.members.length} 件</div></div>
+       <div class="sub2">${x.from?x.from.replace(/-/g,".")+" — "+(x.to||"").replace(/-/g,"."):"（未定展期）"}　${esc(placeOf(x))}　・展品 ${x.members.length} 件</div></div>
      <div class="ops">${pubSw(x.id,x.pub)}<button class="btn" data-open="${x.id}">編輯展覽頁</button>${delBtn(x.id)}</div></div>`;};
   view.innerHTML=`<p class="hint">這就是官網「展覽」頁的樣子。按住左邊的 ⠿ 拖曳，決定展覽在官網上的先後；點「編輯展覽頁」進去改內容和展品。展期結束的會自動移到「過往展覽」。</p>
    <div class="page"><div class="ph">展覽<small>EXHIBITIONS</small></div><div class="wrapc">
@@ -1111,7 +1159,7 @@ function renderEx(){
   view.querySelectorAll("[data-open]").forEach(b=>b.onclick=()=>{exOpen=b.dataset.open;renderEx();scrollTo(0,0);});
   view.querySelectorAll("[data-pub]").forEach(c=>c.onchange=()=>{GROUPS.find(x=>x.id===c.dataset.pub).pub=c.checked;touch();renderEx();});
   view.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>armDelete(b.dataset.del,()=>{GROUPS=GROUPS.filter(x=>x.id!==b.dataset.del);toast("展覽已刪除，展品本身不受影響");},renderEx));
-  $("#newEx").onclick=()=>{const x={id:newCode(),type:"展覽",zh:"",en:"",from:"",to:"",place:"永樂翫青行　臺北迪化街",intro:"",members:[],pub:false};GROUPS.unshift(x);exOpen=x.id;touch();renderEx();};
+  $("#newEx").onclick=()=>{const x={id:newCode(),type:"展覽",zh:"",en:"",from:"",to:"",place:"",intro:"",members:[],pub:false};GROUPS.unshift(x);exOpen=x.id;touch();renderEx();};
 }
 function renderExPage(g){
   const img=mainImg;   // 列表用你選的主圖
@@ -1123,7 +1171,8 @@ function renderExPage(g){
      <input class="inline big" data-f="zh" data-id="${g.id}" value="${esc(g.zh)}" placeholder="展覽名稱" aria-label="展覽名稱" style="margin-top:10px">
      <input class="inline cen" data-f="en" data-id="${g.id}" value="${esc(g.en)}" placeholder="英文名稱" aria-label="英文名稱" style="font-family:'Cormorant Garamond',serif;font-style:italic;color:var(--muted)">
      <div class="dates"><input type="date" data-f="from" data-id="${g.id}" value="${g.from}" aria-label="展期開始"> — <input type="date" data-f="to" data-id="${g.id}" value="${g.to}" aria-label="展期結束"></div>
-     <input class="inline cen" data-f="place" data-id="${g.id}" value="${esc(g.place)}" placeholder="地點" aria-label="地點" style="font-size:13px;color:var(--muted);margin-top:6px">
+     <input class="inline cen" data-f="place" data-id="${g.id}" value="${esc(g.place)}" placeholder="${PLACE_DEFAULT}（沒填就顯示這個）" aria-label="地點（沒填就顯示 ${PLACE_DEFAULT}）" style="font-size:13px;color:var(--muted);margin-top:6px">
+     <div style="text-align:center;font-size:12px;color:var(--muted);margin-top:4px">來訪方式　→　<span style="font-family:system-ui,sans-serif">（連到「關於」頁）</span></div>
      <div class="wrapc" style="margin-top:28px"><textarea class="inline b" data-f="intro" data-id="${g.id}" rows="4" placeholder="展覽前言（放在頁面最上面）" aria-label="展覽前言" style="font-size:14px;line-height:1.9;min-height:5em">${esc(g.intro)}</textarea></div>
      <div class="note2">${pubSw(g.id,g.pub)}</div>
      <div class="shop-grid" id="exGrid" style="margin-top:12px">${g.members.map((c,k)=>{const i=byCode(c);return `
@@ -1202,7 +1251,7 @@ function renderEnq(){
 function renderGroups(){
   view.innerHTML=`<p class="hint">展覽和系列是同一種東西：有展期的是展覽，沒展期的是系列。每一組有自己的收錄品項和順序。</p>
    <div style="margin-bottom:12px"><button class="btn" id="newGroup">＋ 新增展覽或系列</button></div>
-   <div class="list glist">${GROUPS.map(g=>{const cover=byCode(g.members[0]);return `
+   <div class="list glist">${GROUPS.filter(g=>!isAllRow(g)).map(g=>{const cover=byCode(g.members[0]);return `
      <div class="row" data-g="${g.id}">${cover?thumb(cover):`<div class="noimg">空</div>`}
        <div class="info"><div class="pub-name">${esc(g.zh)}<span class="gtype">${g.type}</span></div>
          <div class="internal">${g.type==="展覽"?`${g.from} 到 ${g.to}・`:""}收錄 ${g.members.length} 件・${g.pub?"公開":"不公開"}</div></div>
@@ -1403,7 +1452,7 @@ function openEditor(i){
    <fieldset><legend>官網大分類</legend>${(()=>{const t=tops().find(t=>(t.src||[]).includes(i.cat));
        return t?`<p class="hint" style="margin:0">「${esc(t.name)}」：依典藏大分類（${CATS[i.cat]}）自動歸類，不用選。</p>`
          :`<p class="hint" style="margin:0;color:var(--warn)">目前沒有官網大分類會自動收「${CATS[i.cat]}」，公開後客人在藏品頁找不到它。到「藏品」分頁按「✎ 編輯分類・系列」，新增大分類或設定自動收${CATS[i.cat]}。</p>`;})()}</fieldset>
-   <fieldset class="groups"><legend>放進展覽・系列</legend>${GROUPS.map(g=>`<label><input type="checkbox" value="${g.id}" ${i.code&&g.members.includes(i.code)?"checked":""}> ${esc(g.zh||"（未命名）")}<span class="gtype">${g.type}</span></label>`).join("")}</fieldset>`,
+   <fieldset class="groups"><legend>放進展覽・系列</legend>${GROUPS.filter(g=>!isAllRow(g)).map(g=>`<label><input type="checkbox" value="${g.id}" ${i.code&&g.members.includes(i.code)?"checked":""}> ${esc(g.zh||"（未命名）")}<span class="gtype">${g.type}</span></label>`).join("")}</fieldset>`,
    ()=>{Object.keys(i.out).forEach(k=>i.out[k]=$("#o-"+k).value.trim());i.sel=sel;i.mainAuto=mainAuto;
      const wantPub=$("#e-pub").checked; if(wantPub!==i.pub)setPub(i,wantPub); i.st=$("#e-st").value;
      // 指定第幾位（2026-11-19 Daniel）：存檔時才移動
