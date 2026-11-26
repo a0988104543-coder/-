@@ -653,6 +653,16 @@ function setPub(i,on){
   syncTops();   // 大分類成員一律依典藏大分類重算
 }
 
+// ── 搜尋框（2026-11-26 Daniel：照典藏資料庫，打完按「搜尋」或 Enter 才搜，不要每打一個字就搜）
+//    注音選字時的 Enter 不算；按 × 清空時直接回到全部。
+function bindSearch(el,btn,go){
+  let comp=false;
+  el.addEventListener("compositionstart",()=>comp=true);
+  el.addEventListener("compositionend",()=>comp=false);
+  el.addEventListener("keydown",e=>{if(e.key==="Enter"&&!comp&&!e.isComposing){e.preventDefault();go(el.value.trim());}});
+  el.addEventListener("input",()=>{if(!el.value&&!comp)go("");});
+  if(btn)btn.onclick=()=>go(el.value.trim());
+}
 // ── 挑選藏品：照典藏資料庫的版面（照片卡片牆、分類件數、搜尋、挑選多選、最新的排前面）
 function renderItems(){
   const inCat=i=>f.cat==="全部"||CATS[i.cat]===f.cat;
@@ -673,7 +683,7 @@ function renderItems(){
    <div class="ctlsent"></div><div class="ctlbox items-ctl">
    <div class="filters">${catChips}</div>
    ${subChips?`<div class="filters" style="margin-top:-4px;padding-left:12px;border-left:2px solid var(--line)"><span class="hint" style="margin:0 4px 0 0">典藏細分類</span>${subChips}</div>`:""}
-   <div class="toolbar"><input class="search" id="q" type="search" placeholder="搜尋品名、編號" value="${esc(f.q)}">
+   <div class="toolbar"><input class="search" id="q" type="search" enterkeyhint="search" placeholder="搜尋品名、編號" value="${esc(f.q)}"><button class="btn small" id="qGo">搜尋</button>
      ${pubChips}<span class="count">${list.length} 件</span>
      <button class="chip" id="pickBtn" aria-pressed="${picking}">☑ 挑選</button></div></div>
    <div class="grid">${list.map(i=>{const m=missing(i),pos=ORDER.indexOf(i.code);return `
@@ -693,7 +703,7 @@ function renderItems(){
      <button class="btn small" data-b="done">完成</button></div>`;
   view.querySelectorAll(".chip[data-k]").forEach(b=>b.onclick=()=>{f[b.dataset.k]=b.dataset.v;if(b.dataset.k==="cat")f.sub="全部";renderItems();});
   $("#pickBtn").onclick=()=>{picking=!picking;checked.clear();renderItems();};
-  const q=$("#q"); q.oninput=()=>{f.q=q.value.trim();const pos=q.selectionStart;renderItems();const q2=$("#q");q2.focus();q2.setSelectionRange(pos,pos);};
+  bindSearch($("#q"),$("#qGo"),v=>{if(v===f.q)return;f.q=v;renderItems();});
   view.querySelectorAll(".card2").forEach(c=>c.onclick=()=>{const i=byNo(c.dataset.no);
     if(picking){checked.has(i.no)?checked.delete(i.no):checked.add(i.no);renderItems();} else openEditor(i);});
   view.querySelectorAll("[data-b]").forEach(b=>b.onclick=()=>{
@@ -784,7 +794,7 @@ function renderShop(){
    ${segHtml()}
    <div class="shop"><div class="shop-head">藏品<small>COLLECTION</small></div>
    ${catEdit?"":`<div class="ctlsent"></div>`}<div class="shop-filters ${catEdit?"editing":"ctlbox"}">
-     <div class="toolrow"><input class="shopq" id="shopQ" type="search" value="${esc(shopQ)}" placeholder="⌕ 搜尋" aria-label="搜尋藏品（品名、時代）">
+     <div class="toolrow"><input class="shopq" id="shopQ" type="search" enterkeyhint="search" value="${esc(shopQ)}" placeholder="⌕ 搜尋" aria-label="搜尋藏品（品名、時代）"><button class="btn small" id="shopQGo">搜尋</button>
        ${catEdit?"":`<button class="btn small ${sortMode?"primary":""}" id="sortBtn">${sortMode?"完成排序":"⇅ 排序"}</button>`}
        <button class="btn small" id="catEditBtn">${catEdit?"完成編輯":"✎ 編輯分類・系列"}</button></div>
      <div class="r" id="rowTop">${row1}</div>
@@ -824,7 +834,7 @@ function renderShop(){
   view.querySelectorAll(".shop-filters [data-sub]").forEach(b=>b.onclick=()=>{if(suppressClick)return;shopSub=b.dataset.sub;shopSeries="";delArm=null;renderShop();});
   view.querySelectorAll("[data-stoggle]").forEach(b=>b.onclick=()=>{if(catEdit)return;shopSeriesOpen=!(shopSeriesOpen||!!shopSeries);if(!shopSeriesOpen)shopSeries="";renderShop();});
   $("#catEditBtn").onclick=()=>{catEdit=!catEdit;catRename=catAdding=delArm=null;assignMode=false;renderShop();};
-  const sq=$("#shopQ"); sq.oninput=()=>{shopQ=sq.value.trim();const p=sq.selectionStart;renderShop();const s2=$("#shopQ");s2.focus();s2.setSelectionRange(p,p);};
+  bindSearch($("#shopQ"),$("#shopQGo"),v=>{if(v===shopQ)return;shopQ=v;renderShop();});
   view.querySelectorAll("[data-assign]").forEach(b=>b.onclick=()=>{assignMode=!assignMode;renderShop();});
   if(assignMode)view.querySelectorAll("#shopGrid .scard").forEach(card=>card.onclick=()=>{const c=card.dataset.c,on=target.members.includes(c);
     target.members=on?target.members.filter(x=>x!==c):[...target.members,c];touch();renderShop();});
