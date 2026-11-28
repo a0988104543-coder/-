@@ -529,7 +529,9 @@ function loadData(d){
   });
   ORDER=ITEMS.filter(i=>i.pub&&i.code).sort(bySort).map(i=>i.code);
   GROUPS=(d.groups||[]).map(g=>({id:g.id,type:g.type,cat:g.cat,zh:g.zh,en:g.en,from:g.from,to:g.to,place:g.place,
-    intro:g.intro,introEn:g.introEn,cover:g.cover,updatedAt:g.updatedAt,members:splitList(g.members),pub:isOn(g.pub),sort:g.sort||""})).sort(bySort);
+    intro:g.intro,introEn:g.introEn,cover:g.cover,updatedAt:g.updatedAt,members:splitList(g.members),pub:isOn(g.pub),sort:g.sort||"",
+    // 「全部」列的公開欄填「關」＝這個大分類的「全部」在官網隱藏（2026-11-28 Daniel：一類一類各自開關）
+    off:g.type==="全部"&&String(g.pub||"").trim()==="關"})).sort(bySort);
   GROUPS.forEach(g=>g.members.forEach(c=>{const i=ITEMS.find(x=>x.code===c);if(i)i.groups.push(g.id);}));
   CATTREE=(d.cats||[]).map(c=>({id:c.id,name:c.name,en:c.en,parent:"",show:isOn(c.show),src:splitList(c.src),members:[],sort:c.sort||""})).sort(bySort);
   syncTops();
@@ -558,7 +560,7 @@ function itemWeb(i){
 }
 const catRows=()=>CATTREE.map((c,k)=>({id:c.id,name:str(c.name),en:str(c.en),src:(c.src||[]).join(","),show:tf(c.show),sort:String(k+1)}));
 const groupRows=()=>GROUPS.map((g,k)=>({id:g.id,type:str(g.type),zh:str(g.zh),en:str(g.en),from:str(g.from),to:str(g.to),place:str(g.place),
-  intro:str(g.intro),introEn:str(g.introEn),cover:str(g.cover),members:g.members.join(","),pub:tf(g.pub),updatedAt:str(g.updatedAt),cat:str(g.cat),sort:String(k+1)}));
+  intro:str(g.intro),introEn:str(g.introEn),cover:str(g.cover),members:g.members.join(","),pub:g.type==="全部"?(g.off?"關":""):tf(g.pub),updatedAt:str(g.updatedAt),cat:str(g.cat),sort:String(k+1)}));
 function pageRows(){
   const row=(type,k,o)=>({id:o.id,type,title:"",en:"",body:"",date:"",show:"",sort:String(k+1),...o});
   return [...CATALOGUES.map((c,k)=>row("圖錄",k,{id:c.id,title:str(c.title),en:str(c.en),date:str(c.date),show:tf(c.pub)})),
@@ -623,7 +625,7 @@ async function saveNow(){
 }
 // 存完、沒有待存的修改了，才換上背景讀回來的新資料
 function afterIdle(){ if(needRefresh&&!saving&&!isDirty()){ needRefresh=false; refresh(localStorage.getItem(LS_URL),localStorage.getItem(LS_PASS)||"",true); } }
-let changes=0, tab="items", f={cat:"全部",sub:"全部",pub:"全部",q:""}, checked=new Set(), picking=false, ordView="shop", shopTop="", shopSub="", shopSeries="", shopSeriesOpen=false, shopQ="", assignMode=false, catEdit=false, catRename=null, catAdding=null, homeView="normal", picking2=false, sortMode=false, sortPick=null;
+let allArm=null, changes=0, tab="items", f={cat:"全部",sub:"全部",pub:"全部",q:""}, checked=new Set(), picking=false, ordView="shop", shopTop="", shopSub="", shopSeries="", shopSeriesOpen=false, shopQ="", assignMode=false, catEdit=false, catRename=null, catAdding=null, homeView="normal", picking2=false, sortMode=false, sortPick=null;
 
 const $=s=>document.querySelector(s), view=$("#view");
 const byNo=no=>ITEMS.find(i=>i.no===no), byCode=c=>ITEMS.find(i=>i.code===c);
@@ -663,14 +665,18 @@ function lineup(cat){const L=GROUPS.filter(g=>(g.type==="系列"||isAllRow(g))&&
   if(!L.some(isAllRow))L.unshift({id:"__all",type:"全部",cat,virtual:true});return L;}
 function allCodes(cat){const t=CATTREE.find(c=>c.id===cat);if(!t)return [];
   const ss=GROUPS.filter(g=>g.type==="系列"&&g.cat===cat);return ORDER.filter(c=>t.members.includes(c)||ss.some(x=>x.members.includes(c)));}
-// 官網上會不會出現在系列列：全部＝總開關開而且有品項；系列＝設成顯示而且有公開品項
-const entryShown=g=>isAllRow(g)?SHOWALL&&allCodes(g.cat).length>0:g.pub&&g.members.some(c=>byCode(c)&&byCode(c).pub);
+// 官網上會不會出現在系列列：全部＝沒被隱藏（總開關也開）而且有品項；系列＝設成顯示而且有公開品項
+const entryShown=g=>isAllRow(g)?SHOWALL&&!g.off&&allCodes(g.cat).length>0:g.pub&&g.members.some(c=>byCode(c)&&byCode(c).pub);
 const shownLineup=cat=>lineup(cat).filter(entryShown);
 // 大分類排第一的「顯示中」系列；「全部」回傳 ""（一般模式點大分類時打開它）
 function firstEntry(cat){const g=shownLineup(cat)[0];return !g||isAllRow(g)?"":g.id;}
 // 照 ids（含「全部」）重排這個大分類的系列；「全部」第一次被移動時才在官網分組新增一列記位置
+// 「全部」還沒有自己那一列時（排第一、顯示），第一次移動或隱藏才新增：新增在最前面，位置不變
+function allRowOf(cat){let g=GROUPS.find(x=>isAllRow(x)&&x.cat===cat);
+  if(!g){g={id:newCode(),type:"全部",cat,zh:"全部",en:"",from:"",to:"",place:"",intro:"",introEn:"",cover:"",members:[],pub:false,off:false,sort:""};GROUPS.unshift(g);}
+  return g;}
 function reorderLineup(cat,ids){
-  ids=ids.map(id=>{if(id!=="__all")return id;const g={id:newCode(),type:"全部",cat,zh:"全部",en:"",from:"",to:"",place:"",intro:"",introEn:"",cover:"",members:[],pub:false,sort:""};GROUPS.push(g);return g.id;});
+  ids=ids.map(id=>id==="__all"?allRowOf(cat).id:id);
   GROUPS=[...GROUPS.filter(g=>!ids.includes(g.id)),...ids.map(id=>GROUPS.find(g=>g.id===id))];}
 function syncTops(){tops().forEach(t=>{t.members=ITEMS.filter(i=>i.pub&&i.code&&(t.src||[]).includes(i.cat)).map(i=>i.code);});}
 function setPub(i,on){
@@ -803,7 +809,7 @@ function renderShop(){
   let row2="", row3="";
   if(top&&!(shopQ&&!ser)){
     if(catEdit){
-      const ac=g=>`<button class="cc cs ${SHOWALL?"":"off"}" data-series="" data-id="${g.id}" aria-pressed="${!ser}">全部${SHOWALL?"":"（總開關關）"}</button>`;
+      const ac=g=>{const on=SHOWALL&&!g.off;return `<button class="cc cs ${on?"":"off"}" data-series="" data-id="${g.id}" aria-pressed="${!ser}">全部${on?"":"（隱藏）"}</button>`;};
       row2=`<span class="seriesChips" id="rowSeries">${LU.map(g=>isAllRow(g)?ac(g):sb(g)).join("")}${catAdding==="__series"?`<input class="inl" id="addInput" placeholder="新系列名稱" aria-label="新系列名稱">`:`<button class="add" data-addcat="__series">＋ 系列</button>`}</span>`;
     }else{
       const SL=shownLineup(top.id), curName=ser?ser.zh:"全部";
@@ -815,11 +821,18 @@ function renderShop(){
   }
   const sib=selCat?tops():[], si=selCat?sib.indexOf(selCat):-1;
   const addable=selCat?ITEMS.filter(i=>i.pub&&!selCat.members.includes(i.code)):[];
+  // 「全部」工具列（2026-11-28 Daniel）：「全部」當一個系列，一類一類各自排序、在官網隱藏
+  const allG=selCat?LU.find(isAllRow):null, ak=allG?LU.indexOf(allG):-1;
+  const allTool=catEdit&&allG?`<div class="ctool"><b>「全部」</b>
+      <button class="btn" data-at="left" ${ak>0?"":"disabled"} aria-label="往左">←</button><button class="btn" data-at="right" ${ak<LU.length-1?"":"disabled"} aria-label="往右">→</button>
+      <button class="btn" data-at="show">${allG.off?"在官網顯示":allArm===selCat.id?"確定隱藏？":"在官網隱藏"}</button>
+      <span style="color:var(--muted)">${allArm===selCat.id&&!allG.off?`「${esc(selCat.name)}」底下沒有其他顯示中的系列，隱藏後官網會整個看不到「${esc(selCat.name)}」`
+        :allG.off?"（目前隱藏：官網只顯示這一類建好的系列）":`（「${esc(selCat.name)}」底下全部公開的品項）`}</span></div>`:"";
   // 大分類工具列（2026-11-28 Daniel）：只留左右排序、隱藏；改名、刪除、自動收進拿掉（分類固定照典藏四大類）
   const tool=catEdit&&selCat?`<div class="ctool"><b>「${esc(selCat.name)}」</b>
       <button class="btn" data-ct="left" ${si>0?"":"disabled"} aria-label="往左">←</button><button class="btn" data-ct="right" ${si<sib.length-1?"":"disabled"} aria-label="往右">→</button>
       <button class="btn" data-ct="show">${selCat.show?"在官網隱藏":"在官網顯示"}</button>
-      <span style="color:var(--muted)">（公開的品項依典藏大分類自動歸到這裡）</span></div>`
+      <span style="color:var(--muted)">（公開的品項依典藏大分類自動歸到這裡）</span></div>${allTool}`
     :catEdit&&!selCat&&!ser?`<div class="ctool">點大分類可以排序、隱藏；點系列可以改名、排序、隱藏、刪除、勾選或移出品項。也可以按住名稱左右拖曳。</div>`:"";
   const selName=ser?ser.zh:selCat?selCat.name:"";
   if(catEdit||assignMode){sortMode=false;sortPick=null;}
@@ -854,8 +867,8 @@ function renderShop(){
      </div>`}).join("")}</div></div>`;
   bindSeg();
   let suppressClick=false;
-  view.querySelectorAll(".shop-filters [data-top]").forEach(b=>b.onclick=()=>{if(suppressClick)return;shopTop=b.dataset.top;shopSub="";shopSeries=catEdit?"":firstEntry(shopTop);shopSeriesOpen=false;delArm=null;renderShop();});
-  view.querySelectorAll(".shop-filters [data-series]").forEach(b=>b.onclick=()=>{if(suppressClick)return;shopSeries=b.dataset.series;shopSeriesOpen=false;delArm=null;renderShop();});
+  view.querySelectorAll(".shop-filters [data-top]").forEach(b=>b.onclick=()=>{if(suppressClick)return;shopTop=b.dataset.top;shopSub="";shopSeries=catEdit?"":firstEntry(shopTop);shopSeriesOpen=false;delArm=null;allArm=null;renderShop();});
+  view.querySelectorAll(".shop-filters [data-series]").forEach(b=>b.onclick=()=>{if(suppressClick)return;shopSeries=b.dataset.series;shopSeriesOpen=false;delArm=null;allArm=null;renderShop();});
   const sc=$("#sScroll");
   if(sc){const arr=[...view.querySelectorAll("[data-sarr]")],upd=()=>{arr[0].disabled=sc.scrollLeft<=2;arr[1].disabled=sc.scrollLeft+sc.clientWidth>=sc.scrollWidth-2;};
     arr.forEach(b=>b.onclick=()=>sc.scrollBy({left:+b.dataset.sarr*sc.clientWidth*.7,behavior:"smooth"}));sc.onscroll=upd;
@@ -868,6 +881,16 @@ function renderShop(){
     if(a==="show"){ser.pub=!ser.pub;touch();toast(ser.pub?"官網上會顯示這個系列":"官網上先不顯示這個系列");renderShop();return;}
     if(a==="del"){if(delArm!==ser.id){delArm=ser.id;renderShop();return;}
       GROUPS=GROUPS.filter(x=>x!==ser);ITEMS.forEach(i=>i.groups=i.groups.filter(x=>x!==ser.id));shopSeries="";delArm=null;touch();toast(`已刪除系列「${ser.zh}」，品項本身不受影響`);renderShop();}
+  });
+  view.querySelectorAll("[data-at]").forEach(b=>b.onclick=()=>{const a=b.dataset.at,cat=top.id;
+    if(a==="left"||a==="right"){const ids=LU.map(g=>g.id),k=ids.indexOf(allG.id),j=a==="left"?k-1:k+1;if(j<0||j>=ids.length)return;
+      [ids[k],ids[j]]=[ids[j],ids[k]];reorderLineup(cat,ids);allArm=null;touch();renderShop();return;}
+    if(a==="show"){
+      if(!allG.off){   // 要隱藏：這一類沒有其他顯示中的系列時，先確認一次（隱藏後整個大分類會從官網消失）
+        const others=shownLineup(cat).filter(g=>!isAllRow(g));
+        if(!others.length&&allArm!==cat){allArm=cat;renderShop();return;}}
+      const g=allRowOf(cat);g.off=!g.off;allArm=null;touch();
+      toast(g.off?`官網「${selCat.name}」不顯示「全部」，只顯示建好的系列`:`官網「${selCat.name}」會顯示「全部」`);renderShop();}
   });
   const sa=$("#stAdd"); if(sa)sa.onchange=()=>{if(!sa.value)return;ser.members.push(sa.value);touch();toast(`已加入系列「${ser.zh}」`);renderShop();};
   // 系列名稱拖曳排序（編輯模式）
