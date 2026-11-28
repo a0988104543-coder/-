@@ -538,7 +538,8 @@ function loadData(d){
   ABOUT=pg("關於").map(p=>({id:p.id,h:p.title,b:p.body}));
   ENQ={intro:(d.settings&&d.settings.enqIntro)||"",items:pg("詢問").map(p=>({id:p.id,label:p.title,value:p.body,show:isOn(p.show)}))};
   HOME={feature:(d.settings&&d.settings.feature)||""};
-  SHOWALL=String((d.settings&&d.settings.showAll)||"").trim()!=="關";
+  // 「全部」固定顯示（2026-11-28 Daniel 拿掉總開關）；之後真要拿掉「全部」，改這一行成 false
+  SHOWALL=true;
   CUTMARKS={...(d.cutoutMarks||{})};
   changes=0;
   SNAP=snapshot();
@@ -782,7 +783,8 @@ function renderShop(){
   const addBtn=parent=>catAdding===parent?`<input class="inl" id="addInput" placeholder="新大分類名稱" aria-label="新分類名稱">`:`<button class="add" data-addcat="${parent}">＋ 大分類</button>`;
   const curTop=shopTop;   // 系列屬於大分類，所以選了系列時大分類照樣亮著
   // 大分類沒有「全部」（Daniel 選 A）；子分類那一排保留「全部」
-  const row1=catEdit?`${shownTops.map(t=>cb(t,curTop,"top")).join("")}${addBtn("")}`
+  // 大分類固定照典藏四大類（2026-11-28 Daniel）：編輯模式不再提供新增
+  const row1=catEdit?`${shownTops.map(t=>cb(t,curTop,"top")).join("")}`
                     :`${shownTops.map(t=>fb(t.id,curTop,t.name,"top")).join("")}`;
   // 系列那一排
   const sb=g=>catRename===g.id?`<input class="inl" id="renameInput" value="${esc(g.zh)}" aria-label="系列新名稱">`
@@ -813,15 +815,12 @@ function renderShop(){
   }
   const sib=selCat?tops():[], si=selCat?sib.indexOf(selCat):-1;
   const addable=selCat?ITEMS.filter(i=>i.pub&&!selCat.members.includes(i.code)):[];
-  const tool=catEdit&&selCat&&catRename!==selCat.id?`<div class="ctool"><b>「${esc(selCat.name)}」</b>
-      <button class="btn" data-ct="rename">改名</button>
+  // 大分類工具列（2026-11-28 Daniel）：只留左右排序、隱藏；改名、刪除、自動收進拿掉（分類固定照典藏四大類）
+  const tool=catEdit&&selCat?`<div class="ctool"><b>「${esc(selCat.name)}」</b>
       <button class="btn" data-ct="left" ${si>0?"":"disabled"} aria-label="往左">←</button><button class="btn" data-ct="right" ${si<sib.length-1?"":"disabled"} aria-label="往右">→</button>
       <button class="btn" data-ct="show">${selCat.show?"在官網隱藏":"在官網顯示"}</button>
-      <button class="btn" data-ct="del">${delArm===selCat.id?"確定刪除？":"刪除"}</button>
-      <span style="width:100%;height:0"></span>
-      <span>自動收進典藏的：</span>${Object.entries(CATS).map(([k,v])=>`<button class="btn" style="${(selCat.src||[]).includes(k)?"background:var(--ok-soft);border-color:var(--ok);color:var(--ok)":""}" data-src="${k}" aria-pressed="${(selCat.src||[]).includes(k)}">${(selCat.src||[]).includes(k)?"✓ ":""}${v}</button>`).join("")}
-      <span style="color:var(--muted)">（公開的品項依典藏大分類自動歸到這裡，不用一件件勾）</span></div>`
-    :catEdit&&!selCat&&!ser?`<div class="ctool">點大分類可以改名、排序、隱藏、刪除、設定自動收哪些典藏品項；點系列還可以勾選或移出品項。也可以按住名稱左右拖曳。</div>`:"";
+      <span style="color:var(--muted)">（公開的品項依典藏大分類自動歸到這裡）</span></div>`
+    :catEdit&&!selCat&&!ser?`<div class="ctool">點大分類可以排序、隱藏；點系列可以改名、排序、隱藏、刪除、勾選或移出品項。也可以按住名稱左右拖曳。</div>`:"";
   const selName=ser?ser.zh:selCat?selCat.name:"";
   if(catEdit||assignMode){sortMode=false;sortPick=null;}
   if(sortPick&&!VIS.includes(sortPick))sortPick=null;
@@ -836,7 +835,6 @@ function renderShop(){
    ${catEdit?"":`<div class="ctlsent"></div>`}<div class="shop-filters ${catEdit?"editing":"ctlbox"}">
      <div class="toolrow"><input class="shopq" id="shopQ" type="search" enterkeyhint="search" value="${esc(shopQ)}" placeholder="⌕ 搜尋" aria-label="搜尋藏品（品名、時代）"><button class="btn small" id="shopQGo">搜尋</button>
        ${catEdit?"":`<button class="btn small ${sortMode?"primary":""}" id="sortBtn">${sortMode?"完成排序":"⇅ 排序"}</button>`}
-       ${catEdit?`<button class="btn small ${SHOWALL?"primary":""}" id="allSw" aria-pressed="${SHOWALL}" title="開＝四個大分類都有「全部」；關＝只顯示建好的系列">「全部」總開關：${SHOWALL?"開":"關"}</button>`:""}
        <button class="btn small" id="catEditBtn">${catEdit?"完成編輯":"✎ 編輯分類・系列"}</button></div>
      <div class="r" id="rowTop">${row1}</div>
      ${row2?`<div class="r sub" id="rowSub">${row2}</div>`:""}
@@ -858,7 +856,6 @@ function renderShop(){
   let suppressClick=false;
   view.querySelectorAll(".shop-filters [data-top]").forEach(b=>b.onclick=()=>{if(suppressClick)return;shopTop=b.dataset.top;shopSub="";shopSeries=catEdit?"":firstEntry(shopTop);shopSeriesOpen=false;delArm=null;renderShop();});
   view.querySelectorAll(".shop-filters [data-series]").forEach(b=>b.onclick=()=>{if(suppressClick)return;shopSeries=b.dataset.series;shopSeriesOpen=false;delArm=null;renderShop();});
-  const as=$("#allSw"); if(as)as.onclick=()=>{SHOWALL=!SHOWALL;touch();toast(SHOWALL?"四個大分類都會顯示「全部」":"四個大分類都不顯示「全部」，只顯示建好的系列");renderShop();};
   const sc=$("#sScroll");
   if(sc){const arr=[...view.querySelectorAll("[data-sarr]")],upd=()=>{arr[0].disabled=sc.scrollLeft<=2;arr[1].disabled=sc.scrollLeft+sc.clientWidth>=sc.scrollWidth-2;};
     arr.forEach(b=>b.onclick=()=>sc.scrollBy({left:+b.dataset.sarr*sc.clientWidth*.7,behavior:"smooth"}));sc.onscroll=upd;
@@ -1451,7 +1448,7 @@ function openEditor(i){
        ${i.bgq?`<button type="button" class="btn small" id="bgfail">標為去背失敗</button>`:""}`:`<span class="hint" style="margin:0">先在典藏資料庫拍照上傳</span>`}</div></fieldset>
    <fieldset><legend>官網大分類</legend>${(()=>{const t=tops().find(t=>(t.src||[]).includes(i.cat));
        return t?`<p class="hint" style="margin:0">「${esc(t.name)}」：依典藏大分類（${CATS[i.cat]}）自動歸類，不用選。</p>`
-         :`<p class="hint" style="margin:0;color:var(--warn)">目前沒有官網大分類會自動收「${CATS[i.cat]}」，公開後客人在藏品頁找不到它。到「藏品」分頁按「✎ 編輯分類・系列」，新增大分類或設定自動收${CATS[i.cat]}。</p>`;})()}</fieldset>
+         :`<p class="hint" style="margin:0;color:var(--warn)">目前沒有官網大分類會自動收「${CATS[i.cat]}」，公開後客人在藏品頁找不到它。官網分類設定可能有問題，請 Claude 檢查「官網分類」分頁。</p>`;})()}</fieldset>
    <fieldset class="groups"><legend>放進展覽・系列</legend>${GROUPS.filter(g=>!isAllRow(g)).map(g=>`<label><input type="checkbox" value="${g.id}" ${i.code&&g.members.includes(i.code)?"checked":""}> ${esc(g.zh||"（未命名）")}<span class="gtype">${g.type}</span></label>`).join("")}</fieldset>`,
    ()=>{Object.keys(i.out).forEach(k=>i.out[k]=$("#o-"+k).value.trim());i.sel=sel;i.mainAuto=mainAuto;
      const wantPub=$("#e-pub").checked; if(wantPub!==i.pub)setPub(i,wantPub); i.st=$("#e-st").value;
